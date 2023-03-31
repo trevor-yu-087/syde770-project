@@ -18,11 +18,11 @@ def LSTM_train_fn(
         save_path,
         writer,
         teacher_force_ratio=1,
-        val_interval=1,
+        val_interval=100000,
         checkpoint=None,
 ):
     for epoch in range(num_epoch):
-        
+        print(f'===== Epoch: {epoch} =====')
         epoch_train_loss = 0
         epoch_train_metric = 0
 
@@ -35,25 +35,30 @@ def LSTM_train_fn(
             decoder_optimizer.zero_grad()
 
             # Forward pass
-            decoder_output = torch.zeros(4, train_target.shape[1], train_target.shape[2])
-            start = train_target[:, 0, :]
+            decoder_output = torch.zeros(4, 512, 7).to(device)
+            train_target_unpacked, _ = torch.nn.utils.rnn.pad_packed_sequence(train_target, batch_first=True)
+            train_target_unpacked.to(device)
+            start = train_target_unpacked[:, 0, :].unsqueeze(1).to(device)
             teacher_force = True if random.random() < teacher_force_ratio else False
 
-            encoder_hidden, _ = encoder_model(train_source)
-            encoder_cell = torch.zeros(1, 4, 32)
+            encoder_hidden, encoder_cell = encoder_model(train_source)
+            # print(encoder_hidden.shape)
+            encoder_cell = torch.zeros(1, 4, 32).to(device)
             
-            if epoch == 0:
+            if train_step == 0:
                 decoder_output, decoder_hidden, decoder_cell = decoder_model(train_target, encoder_hidden, encoder_cell)
-                print(f'Decoder Output: {decoder_output.shape}\t Decoder Hidden: {decoder_hidden.shape}\t Decoder Cell: {decoder_cell.shape}')
-            elif epoch !=0 and teacher_force == True:
+                # print(f'Decoder Output: {decoder_output.shape}\t Decoder Hidden: {decoder_hidden.shape}\t Decoder Cell: {decoder_cell.shape}')
+            elif train_step !=0 and teacher_force == True:
                 decoder_output, decoder_hidden, decoder_cell = decoder_model(train_target, encoder_hidden, encoder_cell)
-            elif epoch != 0 and teacher_force == False:
-                for i in range(1, train_target.shape[1]):
-                    decoder_output[:, i, :], decoder_hidden, decoder_cell = decoder_model(start.unsqueeze(1), encoder_hidden, encoder_cell)
+            elif train_step != 0 and teacher_force == False:
+                for i in range(1, 512):
+                    start = torch.nn.utils.rnn.pack_sequence(start)
+                    decoder_output[:, i, :], decoder_hidden, decoder_cell = decoder_model(start, encoder_hidden, encoder_cell)
+                    start = train_target_unpacked[:, i, :].unsqueeze(1)
                     encoder_hidden = decoder_hidden
                     encoder_cell = decoder_cell
 
-            train_loss = loss_fn(decoder_output, train_target)
+            train_loss = loss_fn(decoder_output, train_target_unpacked)
 
             # Backwards
             train_loss.backward()
@@ -66,7 +71,7 @@ def LSTM_train_fn(
             epoch_train_loss += train_loss.item()
 
             # Train metric loss
-            train_metric = metric_loss_fn(decoder_output, train_target)
+            train_metric = metric_loss_fn(decoder_output, train_target_unpacked)
             epoch_train_metric += train_metric
 
         # Average losses for tensorboard
@@ -76,7 +81,7 @@ def LSTM_train_fn(
         writer.add_scalar('Training MAE per Epoch', epoch_train_metric, epoch)
         
 
-        if epoch % val_interval == 0:
+        if epoch+1 % val_interval == 0:
             encoder_model.eval()
             decoder_model.eval()
             with torch.no_grad():
@@ -129,3 +134,4 @@ def LSTM_train_fn(
                     torch.save(encoder_model.state_dict(), os.path.join(save_path, 'best', 'best_encoder_model.pth'))
                     torch.save(decoder_model.state_dict(), os.path.join(save_path, 'best', 'best_decoder_model.pth'))
 
+    writer.close()
