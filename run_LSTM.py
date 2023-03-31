@@ -3,10 +3,12 @@ import torch.nn as nn
 import torch.optim as optim
 from pathlib import Path
 import os
+import glob
 
 import model.hyperparameters as hp
 from model.seq2seq_LSTM import Encoder, Decoder
 from utils.train import LSTM_train_fn
+from utils.dataset import SmartwatchDataset, SmartwatchAugmentLstm
 
 from torch.utils.tensorboard import SummaryWriter
 writer = SummaryWriter(log_dir='model/tensorboard')
@@ -16,8 +18,10 @@ SAVE_PATH = Path('model/')
 
 def main():
     # Get dataloaders
-    '''Edit based on dataset/dataloader'''
-    train_loader, val_loader = lstm_loaders()
+    valid_files = glob.glob("/root/data/smartwatch/subjects/*/*_full.csv")
+    train_dataset = SmartwatchDataset(valid_files)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=16, collate_fn=SmartwatchAugmentLstm())
+    val_loader = train_loader
 
     # Initialize encoder and decoder
     encoder_model = Encoder(
@@ -27,7 +31,7 @@ def main():
         dropout_p=0.1,
     ).to(hp.DEVICE)
     decoder_model = Decoder(
-        input_size=9,
+        input_size=7,
         hidden_size=32,
         output_size=7,
         num_layers=1,
