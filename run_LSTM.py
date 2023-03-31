@@ -20,7 +20,7 @@ def main():
     # Get dataloaders
     valid_files = glob.glob("/root/data/smartwatch/subjects/*/*_full.csv")
     train_dataset = SmartwatchDataset(valid_files)
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=16, collate_fn=SmartwatchAugmentLstm())
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(), drop_last=True, shuffle=True)
     val_loader = train_loader
 
     # Initialize encoder and decoder
