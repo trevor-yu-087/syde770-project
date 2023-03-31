@@ -27,9 +27,8 @@ def LSTM_train_fn(
         epoch_train_metric = 0
 
         for train_step, train_data in enumerate(train_loader):
-            '''change based on dataloader'''
-            train_source = train_data['source'].to(device)
-            train_target = train_data['target'].to(device)
+            train_source = train_data['encoder_inputs'].to(device)
+            train_target = train_data['decoder_inputs'].to(device)
 
             # Zero optimizers
             encoder_optimizer.zero_grad()
@@ -40,31 +39,35 @@ def LSTM_train_fn(
             start = train_target[:, 0, :]
             teacher_force = True if random.random() < teacher_force_ratio else False
 
-            encoder_hidden, encoder_cell = encoder_model(train_source)
+            encoder_hidden, _ = encoder_model(train_source)
+            encoder_cell = torch.zeros(1, 4, 32)
+            
             if epoch == 0:
                 decoder_output, decoder_hidden, decoder_cell = decoder_model(train_target, encoder_hidden, encoder_cell)
                 print(f'Decoder Output: {decoder_output.shape}\t Decoder Hidden: {decoder_hidden.shape}\t Decoder Cell: {decoder_cell.shape}')
-            elif epoch != 0 and teacher_force == True:
+            elif epoch !=0 and teacher_force == True:
                 decoder_output, decoder_hidden, decoder_cell = decoder_model(train_target, encoder_hidden, encoder_cell)
             elif epoch != 0 and teacher_force == False:
                 for i in range(1, train_target.shape[1]):
                     decoder_output[:, i, :], decoder_hidden, decoder_cell = decoder_model(start.unsqueeze(1), encoder_hidden, encoder_cell)
+                    encoder_hidden = decoder_hidden
+                    encoder_cell = decoder_cell
 
-        train_loss = loss_fn(decoder_output, train_target)
+            train_loss = loss_fn(decoder_output, train_target)
 
-        # Backwards
-        train_loss.backward()
+            # Backwards
+            train_loss.backward()
 
-        # Update optimizers
-        encoder_optimizer.step()
-        decoder_optimizer.step()
+            # Update optimizers
+            encoder_optimizer.step()
+            decoder_optimizer.step()
 
-        # Train loss
-        epoch_train_loss += train_loss.item()
+            # Train loss
+            epoch_train_loss += train_loss.item()
 
-        # Train metric loss
-        train_metric = metric_loss_fn(decoder_output, train_target)
-        epoch_train_metric =+ train_metric
+            # Train metric loss
+            train_metric = metric_loss_fn(decoder_output, train_target)
+            epoch_train_metric += train_metric
 
         # Average losses for tensorboard
         epoch_train_loss /= (train_step+1)
@@ -81,9 +84,8 @@ def LSTM_train_fn(
                 epoch_val_metric = 0
 
                 for val_step, val_data in enumerate(val_loader):
-                    '''change based on dataloader'''
-                    val_source = val_data['source'].to(device)
-                    val_target = val_data['target'].to(device)
+                    val_source = val_data['encoder_inputs'].to(device)
+                    val_target = val_data['decoder_inputs'].to(device)
 
                     # Run validation model
                     val_encoder_hidden, val_encoder_cell = encoder_model(val_source)
