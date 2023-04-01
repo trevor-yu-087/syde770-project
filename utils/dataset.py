@@ -145,4 +145,4 @@ def get_file_lists():
     test_subjects = [f"S{n}" for n in [5, 10, 15, 20, 25, 30]]
     test_files = [file for file in valid_files for subject in test_subjects if f"/{subject}/" in file]
     train_files = [file for file in valid_files if file not in set(test_files)]
-    return train_files, test_file
+    return train_files, test_files
