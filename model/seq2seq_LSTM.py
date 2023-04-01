@@ -53,47 +53,10 @@ class Decoder(nn.Module):
             cell, # shape (num_layers, hidden_size)
     ):
         outputs, (hidden, cell) = self.LSTM(input, (hidden, cell))
+        outputs, _ = torch.nn.utils.rnn.pad_packed_sequence(outputs, batch_first=True)
 
         pred = self.fc(outputs)
         pred = pred.squeeze(1) 
-        print(pred.shape)
+        # print(pred.shape)
 
         return pred, hidden, cell
-    
-# class Seq2Seq(nn.Module):
-#     def __init__(
-#             self,
-#             encoder,
-#             decoder,
-#     ):
-#         super(Seq2Seq, self).__init__()
-#         self.encoder = encoder
-#         self.decoder = decoder
-
-#     def forward(
-#             self,
-#             source, # Source position
-#             target, # Target position
-#             teacher_force_ratio = hp.TEACHER_FORCE_RATIO,
-#     ):
-#         batch_size = source.shape[0] 
-#         target_len = target.shape[0]
-#         target_output_size = 512 # FIX
-
-#         outputs = torch.zeros(target_len, batch_size, target_output_size).to(hp.DEVICE)
-
-#         hidden, cell = self.encoder(source)
-        
-#         # Grab start token
-#         start = target[0]
-
-#         for t in range(1, target_len):
-#             output, hidden, cell = self.decoder(start, hidden, cell)
-
-#             outputs[t] = output
-            
-#             best_pred = output.argmax(1)
-
-#             start = target[t] if random.random() < teacher_force_ratio else best_pred
-
-#             return outputs
