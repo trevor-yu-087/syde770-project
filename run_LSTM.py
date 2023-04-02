@@ -4,24 +4,33 @@ import torch.optim as optim
 from pathlib import Path
 import os
 import glob
+from datetime import datetime
 
 import model.hyperparameters as hp
 from model.seq2seq_LSTM import Encoder, Decoder
 from utils.train import LSTM_train_fn
-from utils.dataset import SmartwatchDataset, SmartwatchAugmentLstm
-
-from torch.utils.tensorboard import SummaryWriter
-writer = SummaryWriter(log_dir='model/tensorboard')
+from utils.dataset import (
+    SmartwatchDataset, 
+    SmartwatchAugmentLstm, 
+    get_file_lists
+)
 
 # Paths
-SAVE_PATH = Path('model/')
+SAVE_PATH = Path(f'model/{datetime.now().strftime("%d-%m-%Y_%H%M%S")}')
+
+from torch.utils.tensorboard import SummaryWriter
+writer = SummaryWriter(log_dir=f'{SAVE_PATH}/tensorboard')
 
 def main():
+    # Get .csv files
+    train_files, test_files = get_file_lists()
+
     # Get dataloaders
-    valid_files = glob.glob("/root/data/smartwatch/subjects/*/*_full.csv")
-    train_dataset = SmartwatchDataset(valid_files)
+    train_dataset = SmartwatchDataset(train_files)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(), drop_last=True, shuffle=True)
-    val_loader = train_loader
+
+    val_dataset = SmartwatchDataset(test_files)
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(), drop_last=True, shuffle=True)
 
     # Initialize encoder and decoder
     encoder_model = Encoder(
