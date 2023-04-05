@@ -4,6 +4,20 @@ import torch.nn.functional as F
 import random
 import os
 
+# Transformer Masks:
+def padding_mask(input):
+    # Create mask which marks the zero padding values in the input by a 1
+    mask = input == 0
+    mask = mask.float()
+
+    return mask
+
+def lookahead_mask(shape):
+    # Mask out future entries by marking them with a 1.0
+    mask = 1 - torch.tril(torch.ones((shape, shape)))
+ 
+    return mask
+
 def LSTM_train_fn(
         train_loader,
         val_loader,
