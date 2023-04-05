@@ -4,20 +4,6 @@ import torch.nn.functional as F
 import random
 import os
 
-# Transformer Masks:
-def padding_mask(input):
-    # Create mask which marks the zero padding values in the input by a 1
-    mask = input == 0
-    mask = mask.float()
-
-    return mask
-
-def lookahead_mask(shape):
-    # Mask out future entries by marking them with a 1.0
-    mask = 1 - torch.tril(torch.ones((shape, shape)))
- 
-    return mask
-
 def LSTM_train_fn(
         train_loader,
         val_loader,
@@ -32,17 +18,13 @@ def LSTM_train_fn(
         save_path,
         writer,
         teacher_force_ratio=1,
-        val_interval=1,
+        val_interval=100000,
         checkpoint=None,
 ):
-    best_metric = -1
-
     for epoch in range(num_epoch):
         print(f'===== Epoch: {epoch} =====')
         epoch_train_loss = 0
         epoch_train_metric = 0
-        encoder_model.train()
-        decoder_model.train()
 
         for train_step, train_data in enumerate(train_loader):
             train_source = train_data['encoder_inputs'].to(device)
@@ -99,7 +81,7 @@ def LSTM_train_fn(
         writer.add_scalar('Training MAE per Epoch', epoch_train_metric, epoch)
         
 
-        if (epoch+1) % val_interval == 0:
+        if epoch+1 % val_interval == 0:
             encoder_model.eval()
             decoder_model.eval()
             with torch.no_grad():
@@ -109,22 +91,18 @@ def LSTM_train_fn(
                 for val_step, val_data in enumerate(val_loader):
                     val_source = val_data['encoder_inputs'].to(device)
                     val_target = val_data['decoder_inputs'].to(device)
-                    val_target_unpacked, _ = torch.nn.utils.rnn.pad_packed_sequence(val_target, batch_first=True)
-                    val_target_unpacked.to(device)
 
                     # Run validation model
                     val_encoder_hidden, val_encoder_cell = encoder_model(val_source)
-                    val_encoder_cell = torch.zeros(1, 4, 32).to(device)
-
                     val_decoder_output, val_decoder_hidden, val_decoder_cell = decoder_model(val_target, val_encoder_hidden, val_encoder_cell)
 
-                    val_loss = loss_fn(val_decoder_output, val_target_unpacked)
+                    val_loss = loss_fn(val_decoder_output, val_target)
 
                     # Val loss
                     epoch_val_loss += val_loss.item()
 
                     # Val metric loss
-                    val_metric = metric_loss_fn(val_decoder_output, val_target_unpacked)
+                    val_metric = metric_loss_fn(val_decoder_output, val_target)
                     epoch_val_metric += val_metric
 
                 # Average validation losses for tensorboard
