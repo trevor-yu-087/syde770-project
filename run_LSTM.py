@@ -14,6 +14,7 @@ from utils.dataset import (
     SmartwatchAugmentLstm, 
     get_file_lists
 )
+from utils.utils import test_LSTM
 
 # Paths
 SAVE_PATH = Path(f'model/{datetime.now().strftime("%d-%m-%Y_%H%M%S")}')
@@ -23,14 +24,20 @@ writer = SummaryWriter(log_dir=f'{SAVE_PATH}/tensorboard')
 
 def main():
     # Get .csv files
-    train_files, test_files = get_file_lists()
+    train_files, val_files, test_files = get_file_lists(
+        val_sub_list=['05', 10, 15, 20, 25, 30],
+        test_sub_list=[35],
+    )
 
     # Get dataloaders
     train_dataset = SmartwatchDataset(train_files)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(), drop_last=True, shuffle=True)
 
-    val_dataset = SmartwatchDataset(test_files)
+    val_dataset = SmartwatchDataset(val_files)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(), drop_last=True, shuffle=True)
+
+    test_dataset = SmartwatchDataset(test_files)
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(), drop_last=True, shuffle=True)
 
     # Initialize encoder and decoder
     encoder_model = Encoder(
@@ -70,6 +77,16 @@ def main():
         writer,
         hp.TEACHER_FORCE_RATIO,
         checkpoint=None
+    )
+
+    test_LSTM(
+        test_loader,
+        encoder_model,
+        decoder_model,
+        loss_fn,
+        metric_loss_fn,
+        SAVE_PATH,
+        hp.DEVICE,
     )
 
 if __name__ == '__main__':
