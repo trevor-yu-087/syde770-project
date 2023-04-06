@@ -280,16 +280,30 @@ class SmartwatchAugmentTransformer:
         }
         return collated_data
 
-def get_file_lists():
+def get_file_lists(
+        val_sub_list, 
+        test_sub_list,
+    ):
     """Get list of files to pass to dataset class
+    Parameters:
+    -----------
+    val_sub_list: list of subject numbers for validation
+    test_sub_list: list of subject numbers for testing
+    ***Note: subjects '01' - '09' must be entered as strings in the list
     Returns:
     --------
     train_files: list of str filepaths to pre-processed train data
+    val_files: list of str filepaths to pre-processed validation data
     test_files: list of str filepaths to pre-processed test data
     """
     import glob
     valid_files = glob.glob("/root/data/smartwatch/subjects/*/*_full.csv")
-    test_subjects = [f"S{n}" for n in [5, 10, 15, 20, 25, 30]]
+
+    val_subjects = [f"S{n}" for n in val_sub_list]
+    val_files = [file for file in valid_files for subject in val_subjects if f"/{subject}/" in file]
+
+    test_subjects = [f"S{n}" for n in test_sub_list]
     test_files = [file for file in valid_files for subject in test_subjects if f"/{subject}/" in file]
-    train_files = [file for file in valid_files if file not in set(test_files)]
-    return train_files, test_files
+
+    train_files = [file for file in valid_files if file not in set(val_files + test_files)]
+    return train_files, val_files, test_files
