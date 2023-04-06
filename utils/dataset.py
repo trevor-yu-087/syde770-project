@@ -171,18 +171,25 @@ class SmartwatchAugmentTransformer:
         else:
             return imu, mocap
         
-    def padding_mask(input):
-        # Create mask which marks the zero padding values in the input by a 1
-        mask = input == 0
-        mask = mask.float()
 
-        return mask
+    def padding_mask(self, input, pad_idx=0, dim=512): 
+        # Create mask which marks the zero padding values in the input by a 0
+        mask = torch.zeros((dim))
+        if input.shape[0] < dim:
+            mask[input.shape[0]:] = 1
+            return mask.bool()
+        #mask = mask.float()
 
-    def lookahead_mask(shape):
+        return mask.bool()
+
+
+    def lookahead_mask(self, shape):
         # Mask out future entries by marking them with a 1.0
         mask = 1 - torch.tril(torch.ones((shape, shape)))
+        mask = mask.masked_fill(mask == 1, float('-inf'))
     
         return mask
+
 
     def __call__(self, data):
         """
@@ -236,17 +243,31 @@ class SmartwatchAugmentTransformer:
         decoder_inputs = [decoder_inputs[i] for i in inds]
         targets = [targets[i] for i in inds]
 
-        encoder_inputs = torch.nn.utils.rnn.pack_sequence(encoder_inputs)
-        decoder_inputs = torch.nn.utils.rnn.pack_sequence(decoder_inputs)
-        targets = torch.nn.utils.rnn.pack_sequence(targets)
-
         # Padding mask for encoder
-        enc_padding_mask = self.padding_mask(encoder_inputs)
-
+        enc_padding_mask = [self.padding_mask(input=encoder_inputs[i]) for i in inds]
+        enc_lookahead_mask = [self.lookahead_mask(shape=encoder_inputs[i].shape[1]) for i in inds]
+        
         # Padding and look-ahead masks for decoder
-        dec_in_padding_mask = self.padding_mask(decoder_inputs)
-        dec_in_lookahead_mask = self.lookahead_mask(decoder_inputs.shape[1])
-        dec_in_lookahead_mask = torch.maximum(dec_in_padding_mask, dec_in_lookahead_mask)
+        dec_in_padding_mask = [self.padding_mask(input=decoder_inputs[i]) for i in inds]
+        dec_in_lookahead_mask = [self.lookahead_mask(shape=decoder_inputs[i].shape[1]) for i in inds]
+        #dec_in_lookahead_mask = [torch.maximum(dec_in_padding_mask[i], dec_in_lookahead_mask[i]) for i in inds]
+
+        # Pad input, if needed
+        for i, length in enumerate(lengths):
+            if length != 512:
+                print("Dim does not equal 512 - padding sequence") 
+                encoder_inputs[i] = nn.functional.pad(encoder_inputs[i], pad=(0, 512 - encoder_inputs[i].shape[0]), mode='constant', value=0)
+                decoder_inputs[i] = nn.functional.pad(decoder_inputs[i], pad=(0, 512 - decoder_inputs[i].shape[0]), mode='constant', value=0)
+                targets[i] = nn.functional.pad(targets[i], pad=(0, 512 - targets[i].shape[0]), mode='constant', value=0)
+
+        encoder_inputs = torch.stack(encoder_inputs)
+        decoder_inputs = torch.stack(decoder_inputs)
+        targets = torch.stack(targets)
+
+        enc_padding_mask = torch.stack(enc_padding_mask)
+        enc_lookahead_mask = torch.stack(enc_lookahead_mask)
+        dec_in_padding_mask = torch.stack(dec_in_padding_mask)
+        dec_in_lookahead_mask = torch.stack(dec_in_lookahead_mask)
 
         collated_data = {
             "encoder_inputs": encoder_inputs,
@@ -254,7 +275,8 @@ class SmartwatchAugmentTransformer:
             "targets": targets,
             "encoder_padding_mask": enc_padding_mask,
             "decoder_padding_mask": dec_in_padding_mask,
-            "decoder_lookahead_mask": dec_in_lookahead_mask
+            "decoder_lookahead_mask": dec_in_lookahead_mask,
+            "encoder_lookahead_mask": enc_lookahead_mask
         }
         return collated_data
 
