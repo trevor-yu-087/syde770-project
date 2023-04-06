@@ -44,18 +44,20 @@ def test_LSTM(
         for test_step, test_data in enumerate(test_loader):
             test_source = test_data['encoder_inputs'].to(device)
             test_target = test_data['decoder_inputs'].to(device)
+            test_target_unpacked, _ = torch.nn.utils.rnn.pad_packed_sequence(test_target, batch_first=True)
+            test_target_unpacked.to(device)
 
             # Run test model
             test_encoder_hidden, test_encoder_cell = encoder_model(test_source)
             test_decoder_output, test_decoder_hidden, test_decoder_cell = decoder_model(test_target, test_encoder_hidden, test_encoder_cell)
 
-            test_loss = loss_fn(test_decoder_output, test_target)
+            test_loss = loss_fn(test_decoder_output, test_target_unpacked)
 
             # test loss
             final_test_loss += test_loss.item()
 
             # test metric loss
-            test_metric = metric_loss_fn(test_decoder_output, test_target)
+            test_metric = metric_loss_fn(test_decoder_output, test_target_unpacked)
             final_test_metric += test_metric
 
     print(f'Test Loss: {final_test_loss/(test_step+1)}\nTest Metric: {final_test_metric/(test_step+1)}')
