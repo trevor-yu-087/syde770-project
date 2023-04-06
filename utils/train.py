@@ -18,7 +18,7 @@ def LSTM_train_fn(
         save_path,
         writer,
         teacher_force_ratio=1,
-        val_interval=100000,
+        val_interval=1,
         checkpoint=None,
 ):
     for epoch in range(num_epoch):
