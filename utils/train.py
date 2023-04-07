@@ -21,7 +21,7 @@ def LSTM_train_fn(
         val_interval=1,
         checkpoint=None,
 ):
-    best_metric = -1
+    best_metric = 1e4
 
     for epoch in range(num_epoch):
         print(f'===== Epoch: {epoch} =====')
@@ -136,7 +136,7 @@ def LSTM_train_fn(
                 # Save best model
                 if not os.path.exists(os.path.join(save_path, 'best')):
                     os.makedirs(os.path.join(save_path, 'best'))
-                if epoch_val_metric > best_metric:
+                if epoch_val_metric < best_metric:
                     best_metric = epoch_val_metric
                     best_metric_epoch = epoch
                     torch.save(encoder_model.state_dict(), os.path.join(save_path, 'best', 'best_encoder_model.pth'))
