@@ -1,6 +1,8 @@
 import os
+import numpy as np
 import torch
 from glob import glob
+import matplotlib.pyplot as plt
 
 def load_checkpoint(encoder_model, decoder_model, path):
     """Load checkpoint into LSTM test model
@@ -24,6 +26,43 @@ def load_checkpoint(encoder_model, decoder_model, path):
     ))
     return encoder_model, decoder_model
 
+# def plot(data, title):
+#     for i in range(data.shape[0]):
+#         fig, axs = plt.subplots(2, 1, figsize=(10, 6))
+#         labels = ["X", "Y", "Z", "qx", "qy", "qz", "qw"]
+#         b, l, d = data.shape
+#         t = np.arange(512)
+#         for j in range(3):
+#             axs[0].plot(t, data[i, :, j], label=labels[j])
+#         axs[0].legend()
+#         for j in range(3, d):
+#             axs[1].plot(t, data[i, :, j], label=labels[j])
+#         axs[1].legend()
+#         plt.suptitle(f'{title} Batch {i}')
+#         plt.show()
+
+def plot(outputs, targets, step):
+    for i in range(targets.shape[0]):
+        fig, axs = plt.subplots(4, 1, figsize=(10, 12))
+        labels = ["X", "Y", "Z", "qx", "qy", "qz", "qw"]
+        b, l, d = targets.shape
+        t = np.arange(512)
+        for j in range(3):
+            axs[0].plot(t, outputs[i, :, j], label=labels[j])
+            axs[0].set_title(f'Test Output: Step {step} Batch {i}')
+            axs[1].plot(t, targets[i, :, j], label=labels[j])
+            axs[1].set_title(f'Test Target: Step {step} Batch {i}')
+        axs[0].legend()
+        axs[1].legend()
+        for j in range(3, d):
+            axs[2].plot(t, outputs[i, :, j], label=labels[j])
+            axs[2].set_title(f'Test Output: Step {step} Batch {i}')
+            axs[3].plot(t, targets[i, :, j], label=labels[j])
+            axs[3].set_title(f'Test Target: Step {step} Batch {i}')
+        axs[1].legend()
+        # plt.suptitle(f'{title} Batch {i}')
+        plt.show()
+
 def test_LSTM(
         test_loader,
         encoder_model,
@@ -33,8 +72,9 @@ def test_LSTM(
         path,
         device,
     ):
-    encoder_model, decoder_model = load_checkpoint(encoder_model, decoder_model, path)
+    outputs = []
 
+    encoder_model, decoder_model = load_checkpoint(encoder_model, decoder_model, path)
     encoder_model.eval()
     decoder_model.eval()
     with torch.no_grad():
@@ -49,7 +89,12 @@ def test_LSTM(
 
             # Run test model
             test_encoder_hidden, test_encoder_cell = encoder_model(test_source)
+            test_encoder_cell = torch.zeros(1, 4, 32).to(device)
+
             test_decoder_output, test_decoder_hidden, test_decoder_cell = decoder_model(test_target, test_encoder_hidden, test_encoder_cell)
+            outputs.append(test_decoder_output.numpy(force=True))
+            if test_step < 1:
+                plot(test_decoder_output.numpy(force=True), test_target_unpacked.numpy(force=True), test_step)
 
             test_loss = loss_fn(test_decoder_output, test_target_unpacked)
 
@@ -61,3 +106,4 @@ def test_LSTM(
             final_test_metric += test_metric
 
     print(f'Test Loss: {final_test_loss/(test_step+1)}\nTest Metric: {final_test_metric/(test_step+1)}')
+    np.save(f'{path}/outputs.npy', np.array(outputs, dtype=object), allow_pickle=True)
