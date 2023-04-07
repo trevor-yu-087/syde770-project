@@ -17,10 +17,16 @@ from utils.dataset import (
 from utils.utils import test_LSTM
 
 # Paths
-SAVE_PATH = Path(f'model/{datetime.now().strftime("%d-%m-%Y_%H%M%S")}')
+SAVE_PATH = Path(f'outputs/{datetime.now().strftime("%d-%m-%Y_%H%M%S")}')
 
-from torch.utils.tensorboard import SummaryWriter
-writer = SummaryWriter(log_dir=f'{SAVE_PATH}/tensorboard')
+TRAIN = False
+
+if TRAIN == True:
+    from torch.utils.tensorboard import SummaryWriter
+    writer = SummaryWriter(log_dir=f'{SAVE_PATH}/tensorboard')
+    TEST_PATH = SAVE_PATH
+else:
+    TEST_PATH = Path(input('Enter path to folder containing weights: '))
 
 def main():
     # Get .csv files
@@ -37,7 +43,7 @@ def main():
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(), drop_last=True, shuffle=True)
 
     test_dataset = SmartwatchDataset(test_files)
-    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(), drop_last=True, shuffle=True)
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(), drop_last=True, shuffle=False)
 
     # Initialize encoder and decoder
     encoder_model = Encoder(
@@ -61,23 +67,23 @@ def main():
     # Initialize optimizers
     encoder_optimizer = optim.Adam(encoder_model.parameters(), lr=hp.ENCODER_LEARNING_RATE)
     decoder_optimizer = optim.Adam(decoder_model.parameters(), lr=hp.DECODER_LEARNING_RATE)
-
-    LSTM_train_fn(
-        train_loader,
-        val_loader,
-        encoder_model,
-        decoder_model,
-        encoder_optimizer,
-        decoder_optimizer,
-        loss_fn,
-        metric_loss_fn,
-        hp.NUM_EPOCH,
-        hp.DEVICE,
-        SAVE_PATH,
-        writer,
-        hp.TEACHER_FORCE_RATIO,
-        checkpoint=None
-    )
+    if TRAIN == True:
+        LSTM_train_fn(
+            train_loader,
+            val_loader,
+            encoder_model,
+            decoder_model,
+            encoder_optimizer,
+            decoder_optimizer,
+            loss_fn,
+            metric_loss_fn,
+            hp.NUM_EPOCH,
+            hp.DEVICE,
+            SAVE_PATH,
+            writer,
+            hp.TEACHER_FORCE_RATIO,
+            checkpoint=None
+        )
 
     test_LSTM(
         test_loader,
@@ -85,7 +91,7 @@ def main():
         decoder_model,
         loss_fn,
         metric_loss_fn,
-        SAVE_PATH,
+        TEST_PATH,
         hp.DEVICE,
     )
 
