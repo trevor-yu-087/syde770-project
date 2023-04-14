@@ -19,7 +19,8 @@ from utils.utils import test_LSTM
 # Paths
 SAVE_PATH = Path(f'outputs/{datetime.now().strftime("%d-%m-%Y_%H%M%S")}')
 
-TRAIN = False
+TRAIN = True
+CNN_DOWNSAMPLE = False
 
 if TRAIN == True:
     from torch.utils.tensorboard import SummaryWriter
@@ -51,6 +52,10 @@ def main():
         hidden_size=32,
         num_layers=1,
         dropout_p=0.1,
+        features=[9, 9],
+        stride=2,
+        kernel_size=32,
+        downsample=CNN_DOWNSAMPLE,
     ).to(hp.DEVICE)
     decoder_model = Decoder(
         input_size=7,
@@ -82,7 +87,7 @@ def main():
             SAVE_PATH,
             writer,
             hp.TEACHER_FORCE_RATIO,
-            checkpoint=None
+            checkpoint=None,
         )
 
     test_LSTM(

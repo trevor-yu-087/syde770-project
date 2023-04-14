@@ -5,7 +5,6 @@ class CNN_downsample(nn.Module):
     def __init__(
             self,
             in_channels,
-            out_channels,
             features,
             stride,
             kernel_size,
@@ -14,7 +13,7 @@ class CNN_downsample(nn.Module):
         Parameters:
         -----------
         in_channels: number of input channels (sequence length in this application)
-        features: list of channels to downsample to with multiple Conv1d layers
+        features: list of number of channels corresponding to number of Conv1d layers
         stride: stride of Conv1d
         kernel_size: kernel size for Conv1d (min 3)
         """
@@ -32,6 +31,7 @@ class CNN_downsample(nn.Module):
             self.CNN_downsample.append(
                 nn.ReLU()
             )
+            in_channels = feature
 
     def forward(self, input):
         """
@@ -43,9 +43,8 @@ class CNN_downsample(nn.Module):
         output:  output downsampled tensor (B, L, C)
         --------
         """
-        torch.permute(input, (0, 2, 1))
+        input = torch.permute(input, (0, 2, 1))
         for layer in self.CNN_downsample:
             input = layer(input)
-        output = input
-        torch.permute(output, (0, 2, 1))
+        output = torch.permute(input, (0, 2, 1))
         return output
