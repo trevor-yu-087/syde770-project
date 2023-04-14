@@ -18,23 +18,25 @@ class Encoder(nn.Module):
             features: list,
             stride: int,
             kernel_size: int,
+            seq_len: int,
             downsample: bool,
     ):
         """
         Parameters:
         -----------
         input_size: input tensor channel size
-        hidden_size: LSTM hidden state sequence length
+        hidden_size: LSTM hidden state channel size
         num_layers: number of LSTM layers
         dropout_p: LSTM dropout rate
         features: list of number of channels corresponding to number of Conv1d layers
         stride: downsample Conv1d stride 
         kernel_size: downsample Conv1d kernel size
+        seq_len: sequence length of data tensor
         downsample: bool to use CNN downsampling
         """
         super(Encoder, self).__init__()
         self.downsample = downsample
-        self.CNN_downsample = CNN_downsample(input_size, features, stride, kernel_size)
+        self.CNN_downsample = CNN_downsample(input_size, features, stride, kernel_size, seq_len)
 
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -67,7 +69,7 @@ class Decoder(nn.Module):
         Parameters:
         -----------
         input_size: input tensor channel size
-        hidden_size: LSTM hidden state sequence length
+        hidden_size: LSTM hidden state channel size
         output_size: output tensor channel size
         num_layers: number of LSTM layers
         dropout_p: LSTM dropout rate

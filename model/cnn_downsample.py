@@ -8,6 +8,7 @@ class CNN_downsample(nn.Module):
             features,
             stride,
             kernel_size,
+            seq_len,
     ):
         """
         Parameters:
@@ -16,9 +17,11 @@ class CNN_downsample(nn.Module):
         features: list of number of channels corresponding to number of Conv1d layers
         stride: stride of Conv1d
         kernel_size: kernel size for Conv1d (min 3)
+        seq_len: sequence lenth of data tensor
         """
         super(CNN_downsample, self).__init__()
         self.CNN_downsample = nn.ModuleList()
+        self.seq_len = seq_len
 
         for feature in features:
             self.CNN_downsample.append(
@@ -26,7 +29,8 @@ class CNN_downsample(nn.Module):
                 in_channels=in_channels,
                 out_channels=feature,
                 kernel_size=kernel_size,
-                stride=stride
+                stride=stride,
+                padding=(2*(self.seq_len//2-1)+1+(kernel_size-1)-self.seq_len)//2
             ))
             self.CNN_downsample.append(
                 nn.ReLU()
