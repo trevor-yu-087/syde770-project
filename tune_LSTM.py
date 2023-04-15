@@ -26,13 +26,13 @@ train_files, val_files, test_files = get_file_lists(
 )
 
 # Get dataloaders
-train_dataset = SmartwatchDataset(train_files)
+train_dataset = SmartwatchDataset(train_files, sample_period=0.04)
 train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(max_input_samples=512, downsample_output_seq=1), drop_last=True, shuffle=True)
 
-val_dataset = SmartwatchDataset(val_files)
+val_dataset = SmartwatchDataset(val_files, sample_period=0.04)
 val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(max_input_samples=512, downsample_output_seq=1), drop_last=True, shuffle=True)
 
-test_dataset = SmartwatchDataset(test_files)
+test_dataset = SmartwatchDataset(test_files, sample_period=0.04)
 test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(max_input_samples=512, downsample_output_seq=1), drop_last=True, shuffle=False)
 
 def run(params=None,):
@@ -96,7 +96,7 @@ def objective(trial):
         'hidden_size': trial.suggest_categorical('hidden_size', [32, 64, 128]),
         'num_layers': trial.suggest_int('num_layers', 1, 5),
         'dropout_p': trial.suggest_float('dropout_p', 0.05, 0.15),
-        'channels': trial.suggest_categorical('channels', [[9, 9]]),
+        'channels': trial.suggest_categorical('channels', [[9]]),
         'kernel_size': trial.suggest_categorical('kernel_size', [7, 15, 31, 63]),
         'optimizer': trial.suggest_categorical('optimizer', ['Adam']),
         'learning_rate': trial.suggest_loguniform('learning_rate', 1e-4, 1e-2),
