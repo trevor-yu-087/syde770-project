@@ -5,7 +5,7 @@ class CNN_downsample(nn.Module):
     def __init__(
             self,
             in_channels,
-            features,
+            channels,
             stride,
             kernel_size,
             seq_len,
@@ -14,7 +14,7 @@ class CNN_downsample(nn.Module):
         Parameters:
         -----------
         in_channels: number of input channels (sequence length in this application)
-        features: list of number of channels corresponding to number of Conv1d layers
+        channels: list of number of channels corresponding to number of Conv1d layers
         stride: stride of Conv1d
         kernel_size: kernel size for Conv1d (min 3)
         seq_len: sequence lenth of data tensor
@@ -23,11 +23,11 @@ class CNN_downsample(nn.Module):
         self.CNN_downsample = nn.ModuleList()
         self.seq_len = seq_len
 
-        for feature in features:
+        for channel in channels:
             self.CNN_downsample.append(
                 nn.Conv1d(
                 in_channels=in_channels,
-                out_channels=feature,
+                out_channels=channel,
                 kernel_size=kernel_size,
                 stride=stride,
                 padding=(stride*(self.seq_len//2-1)+1+(kernel_size-1)-self.seq_len)//2
@@ -35,7 +35,7 @@ class CNN_downsample(nn.Module):
             self.CNN_downsample.append(
                 nn.ReLU()
             )
-            in_channels = feature
+            in_channels = channel
 
     def forward(self, input):
         """
