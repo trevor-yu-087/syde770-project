@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import random
 import os
+import model.hyperparameters as hp
 
 def LSTM_train_fn(
         train_loader,
@@ -41,7 +42,7 @@ def LSTM_train_fn(
             decoder_optimizer.zero_grad()
 
             # Forward pass
-            decoder_output = torch.zeros(4, 512, 7).to(device)
+            decoder_output = torch.zeros(hp.BATCH_SIZE, 512, 7).to(device)
             train_target_unpacked, _ = torch.nn.utils.rnn.pad_packed_sequence(train_target, batch_first=True)
             train_target_unpacked.to(device)
             start = train_target_unpacked[:, 0, :].unsqueeze(1).to(device)
