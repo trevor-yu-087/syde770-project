@@ -41,7 +41,7 @@ class SmartwatchAugmentLstm:
         - Add random noise to IMU channels
         - Random crop to the signal (if possible)
     """
-    def __init__(self, position_noise=0.2, accel_eps=0.01, gyro_eps=0.01, mag_eps=0.01, max_input_samples=512, downsample_output_seq=1):
+    def __init__(self, position_noise=0.2, accel_eps=0.1, gyro_eps=0.1, mag_eps=0.1, max_input_samples=512, downsample_output_seq=1):
         """
         Parameters:
         -----------
@@ -153,7 +153,7 @@ class SmartwatchAugmentTransformer:
         - Add random noise to IMU channels
         - Random crop to the signal (if possible)
     """
-    def __init__(self, position_noise=0.2, accel_eps=0.01, gyro_eps=0.01, mag_eps=0.01, max_input_samples=512, downsample_output_seq=1):
+    def __init__(self, position_noise=0.2, accel_eps=0.1, gyro_eps=0.1, mag_eps=0.1, max_input_samples=512, downsample_output_seq=1):
         """
         Parameters:
         -----------
