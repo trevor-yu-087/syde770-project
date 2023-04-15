@@ -1,6 +1,7 @@
 import torch
 import pandas as pd
 import numpy as np
+from torch import nn
 
 rng = np.random.default_rng()
 
@@ -40,7 +41,7 @@ class SmartwatchAugmentLstm:
         - Add random noise to IMU channels
         - Random crop to the signal (if possible)
     """
-    def __init__(self, position_noise=0.2, accel_eps=0.01, gyro_eps=0.01, mag_eps=0.01, max_samples=512):
+    def __init__(self, position_noise=0.2, accel_eps=0.01, gyro_eps=0.01, mag_eps=0.01, max_input_samples=512, downsample_output_seq=1):
         """
         Parameters:
         -----------
@@ -48,27 +49,38 @@ class SmartwatchAugmentLstm:
         accel_eps: float, standard deviation on Gaussian noise added to accelerometer channels
         gyro_eps: float, standard deviation on Gaussian noise added to gyroscope channels
         mag_eps: float, standard deviation on Gaussian noise added to mangetometer channels
+        max_input_samples: int, maximum number of input samples
+        downsample_output_seq: int, factor to downsample output sequence
         """
         self.position_noise = position_noise
         self.accel_eps = accel_eps
         self.gyro_eps = gyro_eps
         self.mag_eps = mag_eps
-        self.max_samples = max_samples
-
+        self.max_input_samples = max_input_samples
+        self.downsample_output_seq = downsample_output_seq
+    
     def _random_crop(self, imu, mocap):
         """
-        Apply a random crop of the signal of length self.max_samples to both inputs and labels, if able to
-        Due to targets being a shifted version of decoder inputs, we need to account for one extra timepoint
+        Apply a random crop of the signal of length self.max_input_samples to both inputs and labels, if able to
+        Due to targets being a shifted version of decoder inputs, we need to account for one extra timepoint (after downsampling)
         """
         n, d = imu.shape
-        max_offset = n - self.max_samples - 1
+        ds = self.downsample_output_seq
+        max_len = self.max_input_samples + ds
+        max_offset = n - max_len
 
         if max_offset > 0:
             offset = rng.choice(max_offset)
-            inds = slice(offset, offset + self.max_samples + 1)
-            return imu[inds, :], mocap[inds, :]
+            input_inds = slice(offset, offset + self.max_input_samples)
+            output_inds = slice(offset, offset + max_len)
+            imu, mocap = imu[input_inds, :], mocap[output_inds, :]
         else:
-            return imu, mocap
+            cutoff = ds if n % ds == 0 else n % ds
+            input_inds = slice(0, n - cutoff)
+            imu = imu[input_inds, :]
+        if self.downsample_output_seq > 1:
+            mocap = mocap[::self.downsample_output_seq, :]
+        return imu, mocap
 
     def __call__(self, data):
         """
@@ -90,7 +102,7 @@ class SmartwatchAugmentLstm:
 
             n_in, d_in = imu.shape
             n_out, d_out = mocap.shape
-            assert n_in == n_out, "IMU and mocap must have the same number of sequence elements"
+            assert np.ceil(n_in / self.downsample_output_seq) + 1 == n_out, f"Downsamping failed, n_in={n_in}; n_out={n_out}"
             assert d_in == 9, f"IMU data has dimensionality {d_in} instead of 9"
             assert d_out == 7, f"Mocap data has dimensionality {d_out} instead of 7"
 
@@ -109,7 +121,7 @@ class SmartwatchAugmentLstm:
             imu += noise
 
             # Ensure targets are one timestep shifted wrt inputs
-            encoder_inputs.append(torch.FloatTensor(imu[:-1, :]))
+            encoder_inputs.append(torch.FloatTensor(imu))
             decoder_inputs.append(torch.FloatTensor(mocap[:-1, :]))
             targets.append(torch.FloatTensor(mocap[1:, :]))
 
@@ -141,7 +153,7 @@ class SmartwatchAugmentTransformer:
         - Add random noise to IMU channels
         - Random crop to the signal (if possible)
     """
-    def __init__(self, position_noise=0.2, accel_eps=0.01, gyro_eps=0.01, mag_eps=0.01, max_samples=512):
+    def __init__(self, position_noise=0.2, accel_eps=0.01, gyro_eps=0.01, mag_eps=0.01, max_input_samples=512, downsample_output_seq=1):
         """
         Parameters:
         -----------
@@ -149,28 +161,38 @@ class SmartwatchAugmentTransformer:
         accel_eps: float, standard deviation on Gaussian noise added to accelerometer channels
         gyro_eps: float, standard deviation on Gaussian noise added to gyroscope channels
         mag_eps: float, standard deviation on Gaussian noise added to mangetometer channels
+        max_input_samples: int, maximum number of input samples
+        downsample_output_seq: int, factor to downsample output sequence
         """
         self.position_noise = position_noise
         self.accel_eps = accel_eps
         self.gyro_eps = gyro_eps
         self.mag_eps = mag_eps
-        self.max_samples = max_samples
+        self.max_input_samples = max_input_samples
+        self.downsample_output_seq = downsample_output_seq
 
     def _random_crop(self, imu, mocap):
         """
-        Apply a random crop of the signal of length self.max_samples to both inputs and labels, if able to
-        Due to targets being a shifted version of decoder inputs, we need to account for one extra timepoint
+        Apply a random crop of the signal of length self.max_input_samples to both inputs and labels, if able to
+        Due to targets being a shifted version of decoder inputs, we need to account for one extra timepoint (after downsampling)
         """
         n, d = imu.shape
-        max_offset = n - self.max_samples - 1
+        ds = self.downsample_output_seq
+        max_len = self.max_input_samples + ds
+        max_offset = n - max_len
 
         if max_offset > 0:
             offset = rng.choice(max_offset)
-            inds = slice(offset, offset + self.max_samples + 1)
-            return imu[inds, :], mocap[inds, :]
+            input_inds = slice(offset, offset + self.max_input_samples)
+            output_inds = slice(offset, offset + max_len)
+            imu, mocap = imu[input_inds, :], mocap[output_inds, :]
         else:
-            return imu, mocap
-        
+            cutoff = ds if n % ds == 0 else n % ds
+            input_inds = slice(0, n - cutoff)
+            imu = imu[input_inds, :]
+        if self.downsample_output_seq > 1:
+            mocap = mocap[::self.downsample_output_seq, :]
+        return imu, mocap
 
     def padding_mask(self, input, pad_idx=0, dim=512): 
         # Create mask which marks the zero padding values in the input by a 0
@@ -211,7 +233,7 @@ class SmartwatchAugmentTransformer:
 
             n_in, d_in = imu.shape
             n_out, d_out = mocap.shape
-            assert n_in == n_out, "IMU and mocap must have the same number of sequence elements"
+            assert np.ceil(n_in / self.downsample_output_seq) + 1 == n_out, f"Downsamping failed, n_in={n_in}; n_out={n_out}"
             assert d_in == 9, f"IMU data has dimensionality {d_in} instead of 9"
             assert d_out == 7, f"Mocap data has dimensionality {d_out} instead of 7"
 
@@ -230,7 +252,7 @@ class SmartwatchAugmentTransformer:
             imu += noise
 
             # Ensure targets are one timestep shifted wrt inputs
-            encoder_inputs.append(torch.FloatTensor(imu[:-1, :]))
+            encoder_inputs.append(torch.FloatTensor(imu))
             decoder_inputs.append(torch.FloatTensor(mocap[:-1, :]))
             targets.append(torch.FloatTensor(mocap[1:, :]))
 
