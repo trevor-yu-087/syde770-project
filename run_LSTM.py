@@ -52,7 +52,7 @@ def main():
         hidden_size=32,
         num_layers=1,
         dropout_p=0.1,
-        features=[9, 9],
+        channels=[9],
         stride=2,
         kernel_size=32,
         seq_len=512,
@@ -74,7 +74,7 @@ def main():
     encoder_optimizer = optim.Adam(encoder_model.parameters(), lr=hp.ENCODER_LEARNING_RATE)
     decoder_optimizer = optim.Adam(decoder_model.parameters(), lr=hp.DECODER_LEARNING_RATE)
     if TRAIN == True:
-        LSTM_train_fn(
+        _ = LSTM_train_fn(
             train_loader,
             val_loader,
             encoder_model,

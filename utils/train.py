@@ -22,6 +22,8 @@ def LSTM_train_fn(
         checkpoint=None,
 ):
     best_metric = 1e4
+    val_loss_values = []
+    val_metric_values = []
 
     for epoch in range(num_epoch):
         print(f'===== Epoch: {epoch} =====')
@@ -47,7 +49,7 @@ def LSTM_train_fn(
 
             encoder_hidden, encoder_cell = encoder_model(train_source)
             # print(encoder_hidden.shape)
-            encoder_cell = torch.zeros(1, 4, 32).to(device)
+            encoder_cell = torch.zeros(encoder_cell.shape).to(device)
             
             if train_step == 0:
                 decoder_output, decoder_hidden, decoder_cell = decoder_model(train_target, encoder_hidden, encoder_cell)
@@ -100,7 +102,7 @@ def LSTM_train_fn(
 
                     # Run validation model
                     val_encoder_hidden, val_encoder_cell = encoder_model(val_source)
-                    val_encoder_cell = torch.zeros(1, 4, 32).to(device)
+                    val_encoder_cell = torch.zeros(val_encoder_cell.shape).to(device)
 
                     val_decoder_output, val_decoder_hidden, val_decoder_cell = decoder_model(val_target, val_encoder_hidden, val_encoder_cell)
 
@@ -116,8 +118,10 @@ def LSTM_train_fn(
                 # Average validation losses for tensorboard
                 epoch_val_loss /= (val_step+1)
                 writer.add_scalar('Validation MSE per Epoch', epoch_val_loss, epoch)
+                val_loss_values.append(epoch_val_loss)
                 epoch_val_metric /= (val_step+1)
                 writer.add_scalar('Validation MAE per Epoch', epoch_val_metric, epoch)
+                val_metric_values.append(epoch_val_metric)
 
 
                  # Save checkpoint
@@ -143,3 +147,4 @@ def LSTM_train_fn(
                     torch.save(decoder_model.state_dict(), os.path.join(save_path, 'best', 'best_decoder_model.pth'))
 
     writer.close()
+    return val_loss_values
