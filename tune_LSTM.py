@@ -108,7 +108,7 @@ def objective(trial):
     return accuracy
 
 def main():
-   study =  optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler())
+   study =  optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler())
    study.optimize(objective, n_trials=100)
    print("Number of finished trials: {}".format(len(study.trials)))
 
