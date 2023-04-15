@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import random
+import math
 
 # Based on tutorial: https://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html#training-the-model
 # and https://www.youtube.com/watch?v=EoGUlvhRYpk&ab_channel=AladdinPersson

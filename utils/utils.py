@@ -26,6 +26,25 @@ def load_checkpoint(encoder_model, decoder_model, path):
     ))
     return encoder_model, decoder_model
 
+def load_checkpoint_Transformer(transformer_model, path):
+    """Load checkpoint into LSTM test model
+    Parameters:
+    -----------
+    encoder_model: initialized LSTM encoder model
+    decoder_model: initialized LSTM decoder model
+    path: path to trained weights
+    Returns:
+    --------
+    encoder_model: LSTM encoder model with loaded weights
+    decoder_model: LSTM decoder model with loaded weights
+    """
+    transformer_model.load_state_dict(torch.load(
+        os.path.join(path, 'best', 'best_transformer_model.pth'),
+        map_location='cpu'
+    ))
+    
+    return transformer_model
+
 # def plot(data, title):
 #     for i in range(data.shape[0]):
 #         fig, axs = plt.subplots(2, 1, figsize=(10, 6))
@@ -119,7 +138,7 @@ def test_Transformer(
     ):
     outputs = []
 
-    transformer_model = load_checkpoint(transformer_model, path)
+    transformer_model = load_checkpoint_Transformer(transformer_model, path)
     transformer_model.eval()
     
     with torch.no_grad():

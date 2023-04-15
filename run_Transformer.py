@@ -19,7 +19,7 @@ from utils.utils import test_Transformer
 # Paths
 SAVE_PATH = Path(f'outputs/{datetime.now().strftime("%d-%m-%Y_%H%M%S")}')
 
-TRAIN = False
+TRAIN = True
 
 if TRAIN == True:
     from torch.utils.tensorboard import SummaryWriter
