@@ -107,3 +107,47 @@ def test_LSTM(
 
     print(f'Test Loss: {final_test_loss/(test_step+1)}\nTest Metric: {final_test_metric/(test_step+1)}')
     np.save(f'{path}/outputs.npy', np.array(outputs, dtype=object), allow_pickle=True)
+
+
+def test_Transformer(
+        test_loader,
+        transformer_model,
+        loss_fn,
+        metric_loss_fn,
+        path,
+        device,
+    ):
+    outputs = []
+
+    transformer_model = load_checkpoint(transformer_model, path)
+    transformer_model.eval()
+    
+    with torch.no_grad():
+        final_test_loss = 0
+        final_test_metric = 0
+
+        for test_step, test_data in enumerate(test_loader):
+            test_source = test_data['encoder_inputs'].to(device)
+            test_target = test_data['decoder_inputs'].to(device)
+            test_target.to(device)
+
+            # Run test model
+            test_output = transformer_model(test_source, test_target)
+            #test_encoder_cell = torch.zeros(1, 4, 32).to(device)
+
+            #test_decoder_output, test_decoder_hidden, test_decoder_cell = decoder_model(test_target, test_encoder_hidden, test_encoder_cell)
+            outputs.append(test_output.numpy(force=True))
+            if test_step < 1:
+                plot(test_output.numpy(force=True), test_target.numpy(force=True), test_step)
+
+            test_loss = loss_fn(test_output, test_target)
+
+            # test loss
+            final_test_loss += test_loss.item()
+
+            # test metric loss
+            test_metric = metric_loss_fn(test_output, test_target)
+            final_test_metric += test_metric
+
+    print(f'Test Loss: {final_test_loss/(test_step+1)}\nTest Metric: {final_test_metric/(test_step+1)}')
+    np.save(f'{path}/outputs.npy', np.array(outputs, dtype=object), allow_pickle=True)
