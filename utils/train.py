@@ -165,6 +165,7 @@ def Transformer_train_fn(
         teacher_force_ratio=1,
         val_interval=1,
         checkpoint=None,
+        batch_size=1
 ):
     best_metric = 1e4
     val_loss_values = []
@@ -187,22 +188,25 @@ def Transformer_train_fn(
             transformer_optimizer.zero_grad()
 
             # Forward pass
-            transformer_output = torch.zeros(4, 512, 7).to(device)
+            transformer_output = torch.zeros(batch_size, 512, 7).to(device)
             train_target.to(device)
             #src_start = train_source[:, 0, :].unsqueeze(1).to(device)
             start = train_target[:, 0, :].unsqueeze(1).to(device)
             teacher_force = True if random.random() < teacher_force_ratio else False
 
-            
             if train_step == 0:
                 transformer_output = transformer_model(src=train_source, tgt=train_target, src_padding=source_padding, 
                                                         tgt_padding=target_padding, tgt_lookahead=target_lookahead)
+                
+
                 # print(f'Decoder Output: {decoder_output.shape}\t Decoder Hidden: {decoder_hidden.shape}\t Decoder Cell: {decoder_cell.shape}')
             elif train_step !=0 and teacher_force == True:
                 transformer_output = transformer_model(src=train_source, tgt=train_target, src_padding=source_padding, 
                                                         tgt_padding=target_padding, tgt_lookahead=target_lookahead)
+
             elif train_step != 0 and teacher_force == False:
                 for i in range(1, 512):
+
                     transformer_output[:, i, :] = transformer_model(src=train_source, tgt=start)
                     start = train_target[:, i, :].unsqueeze(1)
 

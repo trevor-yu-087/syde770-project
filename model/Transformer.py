@@ -4,6 +4,8 @@ import torch.nn.functional as F
 import random
 import math
 
+from model.cnn_downsample import CNN_downsample
+
 # Based on tutorial: https://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html#training-the-model
 # and https://www.youtube.com/watch?v=EoGUlvhRYpk&ab_channel=AladdinPersson
 
@@ -33,23 +35,41 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
 
 class TransformerModel(torch.nn.Module):
-    def __init__(self, input_size=9, output_size=7, d_model=32, n_heads=8, dropout=0.1, num_encoder_layers=6, num_decoder_layers=6):
+    def __init__(
+            self,
+            input_size: int,
+            dropout: float,
+            channels: list,
+            stride: int,
+            kernel_size: int,
+            seq_len: int,
+            downsample: bool,
+            output_size=7, 
+            d_model=32, 
+            n_heads=8,
+            num_encoder_layers=6, 
+            num_decoder_layers=6
+    ):
         super().__init__()
         # INFO
         self.model_type = "Transformer"
         self.d_model = d_model
+        self.seq_len = seq_len
+        self.stride = stride
 
-        self.input_transform = nn.Linear(input_size, d_model)
+        self.downsample = downsample
+
+        if self.downsample:
+            self.CNN_downsample = CNN_downsample(input_size, channels, stride, kernel_size, seq_len)
+            #self.tgt_CNN_downsample = CNN_downsample(output_size, channels, stride, kernel_size, seq_len)
+        else:
+            self.input_transform = nn.Linear(input_size, d_model)
         self.target_transform = nn.Linear(output_size, d_model)
 
         # LAYERS
         self.positional_encoder = PositionalEncoding(
             d_model=d_model, dropout=dropout, max_len=5000
         )
-
-        
-        #self.embedding = torch.nn.Embedding(num_tokens, d_model)
-        
 
         self.transformer = torch.nn.Transformer(
             d_model=d_model,
@@ -73,12 +93,21 @@ class TransformerModel(torch.nn.Module):
         # Src size must be (batch_size, src sequence length)
         # Tgt size must be (batch_size, tgt sequence length)
 
-        src = self.input_transform(src)
-        tgt = self.target_transform(tgt)
+        if self.downsample:
+            src = self.CNN_downsample(src)
+            #tgt = self.tgt_CNN_downsample(tgt)
+            if src_padding is not None:
+                src_padding = src_padding.float().unsqueeze(1)
+                #tgt_padding = tgt_padding.unsqueeze(1)
+                #tgt_lookahead= tgt_lookahead.unsqueeze(1)
 
-        # src = self.cnn(src)
-        # src = self.layer_norm_1(src)
-        # src = self.dropout(src)
+                src_padding = torch.nn.functional.interpolate(src_padding, size=[math.ceil(self.seq_len/self.stride)])[:,0,:].bool()
+                #tgt_padding = torch.nn.functional.interpolate(tgt_padding.float(), size=[math.ceil(self.seq_len/self.stride)])[:,0,:].bool()
+                #tgt_lookahead = torch.nn.functional.interpolate(tgt_lookahead, size=[math.ceil(self.seq_len/self.stride), math.ceil(self.seq_len/self.stride)])[:,0,:,:]
+
+        else:
+            src = self.input_transform(src)
+        tgt = self.target_transform(tgt)
 
         # Embedding + positional encoding - Out size = (batch_size, sequence length, dim_model)
         #src = self.embedding(src) * math.sqrt(self.dim_model)
@@ -95,4 +124,5 @@ class TransformerModel(torch.nn.Module):
         transformer_out = self.transformer(src, tgt, tgt_mask=tgt_lookahead, src_key_padding_mask=src_padding, tgt_key_padding_mask=tgt_padding)
         out = self.out(transformer_out)
         out = out.squeeze(1) 
+
         return out

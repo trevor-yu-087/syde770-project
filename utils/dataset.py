@@ -277,18 +277,20 @@ class SmartwatchAugmentTransformer:
         # Pad input, if needed
         for i, length in enumerate(lengths):
             if length != self.max_input_samples:
-                print("Dim does not equal maximum nubere of input samples - padding sequence") 
-                encoder_inputs[i] = nn.functional.pad(encoder_inputs[i], pad=(0, self.max_input_samples - encoder_inputs[i].shape[0]), mode='constant', value=0)
-                decoder_inputs[i] = nn.functional.pad(decoder_inputs[i], pad=(0, self.max_input_samples - decoder_inputs[i].shape[0]), mode='constant', value=0)
-                targets[i] = nn.functional.pad(targets[i], pad=(0, self.max_input_samples - targets[i].shape[0]), mode='constant', value=0)
-
+                print("Dim does not equal maximum number of input samples - padding sequence") 
+                print(length)
+                print(encoder_inputs[i].shape)
+                encoder_inputs[i] = nn.functional.pad(encoder_inputs[i], pad=(0, 0, self.max_input_samples - encoder_inputs[i].shape[0], 0), mode='constant', value=0)
+                decoder_inputs[i] = nn.functional.pad(decoder_inputs[i], pad=(0, 0, self.max_input_samples - decoder_inputs[i].shape[0], 0), mode='constant', value=0)
+                targets[i] = nn.functional.pad(targets[i], pad=(0, 0, self.max_input_samples - targets[i].shape[0], 0), mode='constant', value=0)
+                print(encoder_inputs[i].shape)
         encoder_inputs = torch.stack(encoder_inputs)
         decoder_inputs = torch.stack(decoder_inputs)
         targets = torch.stack(targets)
 
         enc_padding_mask = torch.stack(enc_padding_mask)
         enc_lookahead_mask = torch.stack(enc_lookahead_mask)
-        enc_lookahead_mask =enc_lookahead_mask.repeat(self.num_heads, 1, 1)
+        enc_lookahead_mask = enc_lookahead_mask.repeat(self.num_heads, 1, 1)
         dec_in_padding_mask = torch.stack(dec_in_padding_mask)
         dec_in_lookahead_mask = torch.stack(dec_in_lookahead_mask)
         dec_in_lookahead_mask = dec_in_lookahead_mask.repeat(self.num_heads, 1, 1)
