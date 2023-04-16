@@ -23,6 +23,9 @@ class CNN_downsample(nn.Module):
         self.CNN_downsample = nn.ModuleList()
         self.seq_len = seq_len
 
+        if isinstance(channels, int):
+            channels = [channels]
+
         for channel in channels:
             self.CNN_downsample.append(
                 nn.Conv1d(

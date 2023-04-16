@@ -41,6 +41,8 @@ class Encoder(nn.Module):
         self.hidden_size = hidden_size
         self.num_layers = num_layers
 
+        if isinstance(channels, int):
+            channels = [channels]
         self.LSTM = nn.LSTM(channels[-1], hidden_size, num_layers, batch_first=True, dropout=dropout_p)
 
     def forward(
