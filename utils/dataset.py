@@ -266,6 +266,14 @@ class SmartwatchAugmentTransformer:
         decoder_inputs = [decoder_inputs[i] for i in inds]
         targets = [targets[i] for i in inds]
 
+        # Pad input, if needed
+        for i, length in enumerate(lengths):
+            if length != self.max_input_samples:
+                print("Dim does not equal maximum number of input samples - padding sequence") 
+                encoder_inputs[i] = nn.functional.pad(encoder_inputs[i], pad=(0, 0, self.max_input_samples - encoder_inputs[i].shape[0], 0), mode='constant', value=0)
+                decoder_inputs[i] = nn.functional.pad(decoder_inputs[i], pad=(0, 0, self.max_input_samples - decoder_inputs[i].shape[0], 0), mode='constant', value=0)
+                targets[i] = nn.functional.pad(targets[i], pad=(0, 0, self.max_input_samples - targets[i].shape[0], 0), mode='constant', value=0)
+
         # Padding mask for encoder
         enc_padding_mask = [self.padding_mask(input=encoder_inputs[i]) for i in inds]
         enc_lookahead_mask = [self.lookahead_mask(shape=encoder_inputs[i].shape[0]) for i in inds]
@@ -274,16 +282,7 @@ class SmartwatchAugmentTransformer:
         dec_in_padding_mask = [self.padding_mask(input=decoder_inputs[i]) for i in inds]
         dec_in_lookahead_mask = [self.lookahead_mask(shape=decoder_inputs[i].shape[0]) for i in inds]
 
-        # Pad input, if needed
-        for i, length in enumerate(lengths):
-            if length != self.max_input_samples:
-                print("Dim does not equal maximum number of input samples - padding sequence") 
-                print(length)
-                print(encoder_inputs[i].shape)
-                encoder_inputs[i] = nn.functional.pad(encoder_inputs[i], pad=(0, 0, self.max_input_samples - encoder_inputs[i].shape[0], 0), mode='constant', value=0)
-                decoder_inputs[i] = nn.functional.pad(decoder_inputs[i], pad=(0, 0, self.max_input_samples - decoder_inputs[i].shape[0], 0), mode='constant', value=0)
-                targets[i] = nn.functional.pad(targets[i], pad=(0, 0, self.max_input_samples - targets[i].shape[0], 0), mode='constant', value=0)
-                print(encoder_inputs[i].shape)
+
         encoder_inputs = torch.stack(encoder_inputs)
         decoder_inputs = torch.stack(decoder_inputs)
         targets = torch.stack(targets)

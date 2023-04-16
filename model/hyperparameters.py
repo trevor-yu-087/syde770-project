@@ -8,6 +8,6 @@ TEACHER_FORCE_RATIO = 0.5
 
 TRANSFORMER_BATCH_SIZE=1
 TRANSFORMER_LEARNING_RATE = 5e-4
-NUM_HEADS=4
+NUM_HEADS=2
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
