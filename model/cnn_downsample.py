@@ -33,7 +33,7 @@ class CNN_downsample(nn.Module):
                 out_channels=channel,
                 kernel_size=kernel_size,
                 stride=stride,
-                padding=(stride*(self.seq_len//2-1)+1+(kernel_size-1)-self.seq_len)//2
+                padding=(stride*(self.seq_len//2-1)+1+(kernel_size-1)-self.seq_len)//2+1
             ))
             self.CNN_downsample.append(
                 nn.ReLU()
