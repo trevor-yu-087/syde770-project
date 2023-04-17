@@ -19,7 +19,7 @@ from utils.dataset import (
 from utils.utils import test_Transformer
 from torch.utils.tensorboard import SummaryWriter
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 print(f"CUDA VISIBLE DEVICES: {os.environ['CUDA_VISIBLE_DEVICES']}")
 
 # Get .csv files
@@ -29,17 +29,17 @@ train_files, val_files, test_files = get_file_lists(
 )
 
 # Get dataloaders
-train_dataset = SmartwatchDataset(train_files, sample_period=0.04)
-train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=hp.TRANSFORMER_BATCH_SIZE, collate_fn=SmartwatchAugmentTransformer(max_input_samples=512, downsample_output_seq=1), drop_last=True, shuffle=True)
+train_dataset = SmartwatchDataset(train_files)
+train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=hp.TRANSFORMER_BATCH_SIZE, collate_fn=SmartwatchAugmentTransformer(max_input_samples=1024, downsample_output_seq=2), drop_last=True, shuffle=True)
 
-val_dataset = SmartwatchDataset(val_files, sample_period=0.04)
-val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=hp.TRANSFORMER_BATCH_SIZE, collate_fn=SmartwatchAugmentTransformer(max_input_samples=512, downsample_output_seq=1), drop_last=True, shuffle=True)
+val_dataset = SmartwatchDataset(val_files)
+val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=hp.TRANSFORMER_BATCH_SIZE, collate_fn=SmartwatchAugmentTransformer(max_input_samples=1024, downsample_output_seq=2), drop_last=True, shuffle=True)
 
-test_dataset = SmartwatchDataset(test_files, sample_period=0.04)
-test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=hp.TRANSFORMER_BATCH_SIZE, collate_fn=SmartwatchAugmentTransformer(max_input_samples=512, downsample_output_seq=1), drop_last=True, shuffle=False)
+test_dataset = SmartwatchDataset(test_files)
+test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=hp.TRANSFORMER_BATCH_SIZE, collate_fn=SmartwatchAugmentTransformer(max_input_samples=1024, downsample_output_seq=2), drop_last=True, shuffle=False)
 
 def run(params=None,):
-    SAVE_PATH = Path(f'outputs/transformer_tuning_2/{datetime.now().strftime("%d-%m-%Y_%H%M%S")}')
+    SAVE_PATH = Path(f'outputs/cnntransformer_tuning_2/{datetime.now().strftime("%d-%m-%Y_%H%M%S")}')
     writer = SummaryWriter(log_dir=f'{SAVE_PATH}/tensorboard')
     TEST_PATH = SAVE_PATH
 
@@ -52,7 +52,7 @@ def run(params=None,):
         stride=2,
         kernel_size=params['kernel_size'],
         seq_len=1024,
-        downsample=False,
+        downsample=True,
         output_size=7,
         num_encoder_layers=params['num_layers'],
         num_decoder_layers=params['num_layers']
@@ -91,7 +91,7 @@ def objective(trial):
         'hidden_size': trial.suggest_categorical('hidden_size', [32, 64]),
         'num_layers': trial.suggest_int('num_layers', 1, 3),
         'dropout_p': trial.suggest_float('dropout_p', 0.05, 0.15),
-        'kernel_size': trial.suggest_categorical('kernel_size', [7]),
+        'kernel_size': trial.suggest_categorical('kernel_size', [7, 15, 31, 63]),
         'optimizer': trial.suggest_categorical('optimizer', ['Adam']),
         'learning_rate': trial.suggest_loguniform('learning_rate', 1e-4, 1e-2),
         'weight_decay': trial.suggest_loguniform('weight_decay', 1e-4, 1e-2),

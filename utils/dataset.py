@@ -153,7 +153,7 @@ class SmartwatchAugmentTransformer:
         - Add random noise to IMU channels
         - Random crop to the signal (if possible)
     """
-    def __init__(self, position_noise=0.2, accel_eps=0.1, gyro_eps=0.1, mag_eps=0.1, max_input_samples=512, downsample_output_seq=1, num_heads=8):
+    def __init__(self, position_noise=0.2, accel_eps=0.1, gyro_eps=0.1, mag_eps=0.1, max_input_samples=512, downsample_output_seq=1):
         """
         Parameters:
         -----------
@@ -170,7 +170,6 @@ class SmartwatchAugmentTransformer:
         self.mag_eps = mag_eps
         self.max_input_samples = max_input_samples
         self.downsample_output_seq = downsample_output_seq
-        self.num_heads = num_heads
 
     def _random_crop(self, imu, mocap):
         """
@@ -266,20 +265,23 @@ class SmartwatchAugmentTransformer:
         decoder_inputs = [decoder_inputs[i] for i in inds]
         targets = [targets[i] for i in inds]
 
+        decoder_lengths = [len(item) for item in decoder_inputs]
+
         # Pad input, if needed
         for i, length in enumerate(lengths):
-            if length != self.max_input_samples:
-                print("Dim does not equal maximum number of input samples - padding sequence") 
+            if length != self.max_input_samples or decoder_lengths[i] != self.max_input_samples:
+                #print("Dim does not equal maximum number of input samples - padding sequence") 
                 encoder_inputs[i] = nn.functional.pad(encoder_inputs[i], pad=(0, 0, self.max_input_samples - encoder_inputs[i].shape[0], 0), mode='constant', value=0)
                 decoder_inputs[i] = nn.functional.pad(decoder_inputs[i], pad=(0, 0, self.max_input_samples - decoder_inputs[i].shape[0], 0), mode='constant', value=0)
                 targets[i] = nn.functional.pad(targets[i], pad=(0, 0, self.max_input_samples - targets[i].shape[0], 0), mode='constant', value=0)
 
+
         # Padding mask for encoder
-        enc_padding_mask = [self.padding_mask(input=encoder_inputs[i]) for i in inds]
+        enc_padding_mask = [self.padding_mask(input=encoder_inputs[i], dim=self.max_input_samples) for i in inds]
         enc_lookahead_mask = [self.lookahead_mask(shape=encoder_inputs[i].shape[0]) for i in inds]
         
         # Padding and look-ahead masks for decoder
-        dec_in_padding_mask = [self.padding_mask(input=decoder_inputs[i]) for i in inds]
+        dec_in_padding_mask = [self.padding_mask(input=decoder_inputs[i], dim=self.max_input_samples) for i in inds]
         dec_in_lookahead_mask = [self.lookahead_mask(shape=decoder_inputs[i].shape[0]) for i in inds]
 
 
@@ -289,10 +291,10 @@ class SmartwatchAugmentTransformer:
 
         enc_padding_mask = torch.stack(enc_padding_mask)
         enc_lookahead_mask = torch.stack(enc_lookahead_mask)
-        enc_lookahead_mask = enc_lookahead_mask.repeat(self.num_heads, 1, 1)
+        
         dec_in_padding_mask = torch.stack(dec_in_padding_mask)
         dec_in_lookahead_mask = torch.stack(dec_in_lookahead_mask)
-        dec_in_lookahead_mask = dec_in_lookahead_mask.repeat(self.num_heads, 1, 1)
+
 
         collated_data = {
             "encoder_inputs": encoder_inputs,

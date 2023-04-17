@@ -39,7 +39,6 @@ class TransformerModel(torch.nn.Module):
             self,
             input_size: int,
             dropout: float,
-            channels: list,
             stride: int,
             kernel_size: int,
             seq_len: int,
@@ -56,11 +55,12 @@ class TransformerModel(torch.nn.Module):
         self.d_model = d_model
         self.seq_len = seq_len
         self.stride = stride
+        self.n_heads = n_heads
 
         self.downsample = downsample
 
         if self.downsample:
-            self.CNN_downsample = CNN_downsample(input_size, channels, stride, kernel_size, seq_len)
+            self.CNN_downsample = CNN_downsample(input_size, d_model, stride, kernel_size, seq_len)
             #self.tgt_CNN_downsample = CNN_downsample(output_size, channels, stride, kernel_size, seq_len)
         else:
             self.input_transform = nn.Linear(input_size, d_model)
@@ -78,7 +78,9 @@ class TransformerModel(torch.nn.Module):
             num_decoder_layers=num_decoder_layers,
             dropout=dropout,
             batch_first=True,
-            norm_first=True
+            norm_first=True,
+            dim_feedforward=d_model*2,
+            activation="gelu"
         )
         self.out = torch.nn.Linear(d_model, output_size)
 
@@ -92,16 +94,22 @@ class TransformerModel(torch.nn.Module):
     ):
         # Src size must be (batch_size, src sequence length)
         # Tgt size must be (batch_size, tgt sequence length)
+        #src_lookahead_mask = enc_lookahead_mask.repeat(self.num_heads, 1, 1)
+        if tgt_lookahead is not None:
+            tgt_lookahead = tgt_lookahead.repeat(self.n_heads, 1, 1)
+
 
         if self.downsample:
             src = self.CNN_downsample(src)
             #tgt = self.tgt_CNN_downsample(tgt)
+   
             if src_padding is not None:
                 src_padding = src_padding.float().unsqueeze(1)
                 #tgt_padding = tgt_padding.unsqueeze(1)
                 #tgt_lookahead= tgt_lookahead.unsqueeze(1)
 
                 src_padding = torch.nn.functional.interpolate(src_padding, size=[math.ceil(self.seq_len/self.stride)])[:,0,:].bool()
+
                 #tgt_padding = torch.nn.functional.interpolate(tgt_padding.float(), size=[math.ceil(self.seq_len/self.stride)])[:,0,:].bool()
                 #tgt_lookahead = torch.nn.functional.interpolate(tgt_lookahead, size=[math.ceil(self.seq_len/self.stride), math.ceil(self.seq_len/self.stride)])[:,0,:,:]
 
