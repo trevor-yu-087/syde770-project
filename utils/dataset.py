@@ -324,7 +324,7 @@ def get_file_lists(
     test_files: list of str filepaths to pre-processed test data
     """
     import glob
-    valid_files = glob.glob("/root/data/smartwatch/subjects/*/*_full.csv")
+    valid_files = glob.glob("~/scratch/syde770_processed_data/subjects/*/*_full.csv")
 
     val_subjects = [f"S{n}" for n in val_sub_list]
     val_files = [file for file in valid_files for subject in val_subjects if f"/{subject}/" in file]
