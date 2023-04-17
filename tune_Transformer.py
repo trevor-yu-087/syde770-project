@@ -88,8 +88,8 @@ def run(params=None,):
 
 def objective(trial):
     params = {
-        'hidden_size': trial.suggest_categorical('hidden_size', [32, 64]),
-        'num_layers': trial.suggest_int('num_layers', 1, 3),
+        'hidden_size': trial.suggest_categorical('hidden_size', [32, 64, 128]),
+        'num_layers': trial.suggest_int('num_layers', 1, 5),
         'dropout_p': trial.suggest_float('dropout_p', 0.05, 0.15),
         'kernel_size': trial.suggest_categorical('kernel_size', [7]),
         'optimizer': trial.suggest_categorical('optimizer', ['Adam']),
