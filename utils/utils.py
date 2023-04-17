@@ -108,7 +108,7 @@ def test_LSTM(
 
             # Run test model
             test_encoder_hidden, test_encoder_cell = encoder_model(test_source)
-            test_encoder_cell = torch.zeros(1, 4, 32).to(device)
+            test_encoder_cell = torch.zeros(test_encoder_cell.shape).to(device)
 
             test_decoder_output, test_decoder_hidden, test_decoder_cell = decoder_model(test_target, test_encoder_hidden, test_encoder_cell)
             outputs.append(test_decoder_output.numpy(force=True))
