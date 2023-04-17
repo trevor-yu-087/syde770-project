@@ -26,13 +26,13 @@ train_files, val_files, test_files = get_file_lists(
 )
 
 # Get dataloaders
-train_dataset = SmartwatchDataset(train_files, sample_period=0.04)
+train_dataset = SmartwatchDataset(train_files)
 train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(max_input_samples=1024, downsample_output_seq=2), drop_last=True, shuffle=True)
 
-val_dataset = SmartwatchDataset(val_files, sample_period=0.04)
+val_dataset = SmartwatchDataset(val_files)
 val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(max_input_samples=1024, downsample_output_seq=2), drop_last=True, shuffle=True)
 
-test_dataset = SmartwatchDataset(test_files, sample_period=0.04)
+test_dataset = SmartwatchDataset(test_files)
 test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(max_input_samples=1024, downsample_output_seq=2), drop_last=True, shuffle=False)
 
 def run(params=None,):
