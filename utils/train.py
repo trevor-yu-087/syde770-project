@@ -194,6 +194,7 @@ def Transformer_train_fn(
             start = train_target[:, 0, :].unsqueeze(1).to(device)
             teacher_force = True if random.random() < teacher_force_ratio else False
 
+
             if train_step == 0:
                 transformer_output = transformer_model(src=train_source, tgt=train_target, src_padding=source_padding, 
                                                         tgt_padding=target_padding, tgt_lookahead=target_lookahead)
@@ -206,7 +207,6 @@ def Transformer_train_fn(
 
             elif train_step != 0 and teacher_force == False:
                 for i in range(1, 512):
-
                     transformer_output[:, i, :] = transformer_model(src=train_source, tgt=start)
                     start = train_target[:, i, :].unsqueeze(1)
 
