@@ -84,6 +84,12 @@ def main():
         dropout_p=params['dropout'][LSTM_OR_CNNLSTM],
     ).to(hp.DEVICE)
 
+    pytorch_total_params = sum(p.numel() for p in encoder_model.parameters())
+    print(f"Encoder model params: {pytorch_total_params}")
+
+    pytorch_total_params = sum(p.numel() for p in decoder_model.parameters())
+    print(f"Decoder model params: {pytorch_total_params}")
+
     # Initialize loss functions
     loss_fn = nn.MSELoss()
     metric_loss_fn = nn.L1Loss()

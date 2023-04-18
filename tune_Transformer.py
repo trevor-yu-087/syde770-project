@@ -39,7 +39,7 @@ test_dataset = SmartwatchDataset(test_files, sample_period=0.04)
 test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=hp.TRANSFORMER_BATCH_SIZE, collate_fn=SmartwatchAugmentTransformer(max_input_samples=512, downsample_output_seq=1), drop_last=True, shuffle=False)
 
 def run(params=None,):
-    SAVE_PATH = Path(f'outputs/transformer_tuning_2/{datetime.now().strftime("%d-%m-%Y_%H%M%S")}')
+    SAVE_PATH = Path(f'outputs/transformer_tuning/{datetime.now().strftime("%d-%m-%Y_%H%M%S")}')
     writer = SummaryWriter(log_dir=f'{SAVE_PATH}/tensorboard')
     TEST_PATH = SAVE_PATH
 

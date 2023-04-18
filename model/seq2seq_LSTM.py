@@ -36,7 +36,8 @@ class Encoder(nn.Module):
         """
         super(Encoder, self).__init__()
         self.downsample = downsample
-        self.CNN_downsample = CNN_downsample(input_size, channels, stride, kernel_size, seq_len)
+        if self.downsample:
+            self.CNN_downsample = CNN_downsample(input_size, channels, stride, kernel_size, seq_len)
 
         self.hidden_size = hidden_size
         self.num_layers = num_layers
