@@ -16,8 +16,8 @@ from utils.dataset import (
 )
 from utils.utils import test_Transformer
 
-# os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-# print(f"CUDA VISIBLE DEVICES: {os.environ['CUDA_VISIBLE_DEVICES']}")
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+print(f"CUDA VISIBLE DEVICES: {os.environ['CUDA_VISIBLE_DEVICES']}")
 
 BATCH_SIZE = 1
 
@@ -84,6 +84,9 @@ def main():
         num_decoder_layers=5
     ).to(hp.DEVICE)
 
+    pytorch_total_params = sum(p.numel() for p in transformer_model.parameters())
+    print(f"Model params: {pytorch_total_params}")
+
     # Initialize loss functions
     loss_fn = nn.MSELoss()
     metric_loss_fn = nn.L1Loss()
@@ -103,7 +106,7 @@ def main():
             hp.DEVICE,
             SAVE_PATH,
             writer,
-            hp.TEACHER_FORCE_RATIO,
+            hp.TRANSFORMER_TEACHER_FORCE_RATIO,
             checkpoint=None,
             batch_size=BATCH_SIZE
         )

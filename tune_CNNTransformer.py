@@ -19,7 +19,7 @@ from utils.dataset import (
 from utils.utils import test_Transformer
 from torch.utils.tensorboard import SummaryWriter
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 print(f"CUDA VISIBLE DEVICES: {os.environ['CUDA_VISIBLE_DEVICES']}")
 
 # Get .csv files
