@@ -92,6 +92,7 @@ def test_LSTM(
         device,
     ):
     outputs = []
+    targets = []
 
     encoder_model, decoder_model = load_checkpoint(encoder_model, decoder_model, path)
     encoder_model.eval()
@@ -114,6 +115,8 @@ def test_LSTM(
             outputs.append(test_decoder_output.numpy(force=True))
             if test_step < 1:
                 plot(test_decoder_output.numpy(force=True), test_target_unpacked.numpy(force=True), test_step)
+                outputs.append((test_decoder_output.numpy(force=True)))
+                targets.append(test_target_unpacked.numpy(force=True))
 
             test_loss = loss_fn(test_decoder_output, test_target_unpacked)
 
@@ -126,6 +129,7 @@ def test_LSTM(
 
     print(f'Test Loss: {final_test_loss/(test_step+1)}\nTest Metric: {final_test_metric/(test_step+1)}')
     np.save(f'{path}/outputs.npy', np.array(outputs, dtype=object), allow_pickle=True)
+    np.save(f'{path}/targets.npy', np.array(targets, dtype=object), allow_pickle=True)
 
 
 def test_Transformer(
@@ -137,6 +141,7 @@ def test_Transformer(
         device,
     ):
     outputs = []
+    targets = []
 
     transformer_model = load_checkpoint_Transformer(transformer_model, path)
     transformer_model.eval()
@@ -158,7 +163,8 @@ def test_Transformer(
             # outputs.append(test_output.numpy(force=True))
             if test_step < 1:
                 plot(test_output.numpy(force=True), test_target.numpy(force=True), test_step)
-                outputs.append(np.hstack((test_output.numpy(force=True), test_target.numpy(force=True))))
+                outputs.append((test_output.numpy(force=True)))
+                targets.append(test_target.numpy(force=True))
             test_loss = loss_fn(test_output, test_target)
 
             # test loss
@@ -170,3 +176,4 @@ def test_Transformer(
 
     print(f'Test Loss: {final_test_loss/(test_step+1)}\nTest Metric: {final_test_metric/(test_step+1)}')
     np.save(f'{path}/outputs.npy', np.array(outputs, dtype=object), allow_pickle=True)
+    np.save(f'{path}/targets.npy', np.array(targets, dtype=object), allow_pickle=True)
