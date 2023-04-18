@@ -112,7 +112,7 @@ def test_LSTM(
             test_encoder_cell = torch.zeros(test_encoder_cell.shape).to(device)
 
             test_decoder_output, test_decoder_hidden, test_decoder_cell = decoder_model(test_target, test_encoder_hidden, test_encoder_cell)
-            outputs.append(test_decoder_output.numpy(force=True))
+            # outputs.append(test_decoder_output.numpy(force=True))
             if test_step < 1:
                 plot(test_decoder_output.numpy(force=True), test_target_unpacked.numpy(force=True), test_step)
                 outputs.append((test_decoder_output.numpy(force=True)))
