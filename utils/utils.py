@@ -155,10 +155,10 @@ def test_Transformer(
             #test_encoder_cell = torch.zeros(1, 4, 32).to(device)
 
             #test_decoder_output, test_decoder_hidden, test_decoder_cell = decoder_model(test_target, test_encoder_hidden, test_encoder_cell)
-            outputs.append(test_output.numpy(force=True))
+            # outputs.append(test_output.numpy(force=True))
             if test_step < 1:
                 plot(test_output.numpy(force=True), test_target.numpy(force=True), test_step)
-
+                outputs.append(np.hstack((test_output.numpy(force=True), test_target.numpy(force=True))))
             test_loss = loss_fn(test_output, test_target)
 
             # test loss
