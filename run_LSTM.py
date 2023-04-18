@@ -17,10 +17,10 @@ from utils.dataset import (
 from utils.utils import test_LSTM
 
 # Paths
-SAVE_PATH = Path(f'outputs/{datetime.now().strftime("%d-%m-%Y_%H%M%S")}')
+SAVE_PATH = Path(f'outputs/cross-val/{datetime.now().strftime("%d-%m-%Y_%H%M%S")}')
 
 TRAIN = True
-CNN_DOWNSAMPLE = True
+CNN_DOWNSAMPLE = False
 
 if TRAIN == True:
     from torch.utils.tensorboard import SummaryWriter
@@ -51,10 +51,10 @@ def main():
         input_size=9,
         hidden_size=32,
         num_layers=1,
-        dropout_p=0.1,
+        dropout_p=0.137579431603837,
         channels=[9],
         stride=2,
-        kernel_size=32,
+        kernel_size=63,
         seq_len=512,
         downsample=CNN_DOWNSAMPLE,
     ).to(hp.DEVICE)
@@ -63,7 +63,7 @@ def main():
         hidden_size=32,
         output_size=7,
         num_layers=1,
-        dropout_p=0.1,
+        dropout_p=0.137579431603837,
     ).to(hp.DEVICE)
 
     # Initialize loss functions
@@ -71,8 +71,8 @@ def main():
     metric_loss_fn = nn.L1Loss()
 
     # Initialize optimizers
-    encoder_optimizer = optim.Adam(encoder_model.parameters(), lr=hp.ENCODER_LEARNING_RATE)
-    decoder_optimizer = optim.Adam(decoder_model.parameters(), lr=hp.DECODER_LEARNING_RATE)
+    encoder_optimizer = optim.Adam(encoder_model.parameters(), lr=0.00239595953758425, weight_decay=0.00016730652977231463)
+    decoder_optimizer = optim.Adam(decoder_model.parameters(), lr=0.00239595953758425, weight_decay=0.00016730652977231463)
     if TRAIN == True:
         _ = LSTM_train_fn(
             train_loader,
@@ -83,7 +83,7 @@ def main():
             decoder_optimizer,
             loss_fn,
             metric_loss_fn,
-            hp.NUM_EPOCH,
+            38,
             hp.DEVICE,
             SAVE_PATH,
             writer,
