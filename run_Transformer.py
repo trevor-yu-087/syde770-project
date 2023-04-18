@@ -16,8 +16,13 @@ from utils.dataset import (
 )
 from utils.utils import test_Transformer
 
+# os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+# print(f"CUDA VISIBLE DEVICES: {os.environ['CUDA_VISIBLE_DEVICES']}")
+
+BATCH_SIZE = 1
+
 # Cross validation stuff
-START_SUBJECT = 7
+START_SUBJECT = 6
 val_subjects = []
 for i in range(START_SUBJECT, (START_SUBJECT+30), 5):
      val_subjects.append(i)
@@ -32,6 +37,8 @@ params = {
     'epochs': [37, 30],
     'transformer_or_cnntransformer': ['Transformer', 'CNN-Transformer'],
     'sample_period': [0.04, 0.02],
+    'seq_len': [512, 1024],
+    'downsample_ratio': [1, 2]
 }
 
 # Paths
@@ -48,19 +55,19 @@ else:
 def main():
     # Get .csv files
     train_files, val_files, test_files = get_file_lists(
-        val_sub_list=['05', 10, 15, 20, 25, 30],
-        test_sub_list=[35],
+        val_subjects,
+        test_sub_list=[41],
     )
 
     # Get dataloaders
     train_dataset = SmartwatchDataset(train_files, params['sample_period'][TRANSFORMER_OR_CNNTRANSFORMER])
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=hp.TRANSFORMER_BATCH_SIZE, collate_fn=SmartwatchAugmentTransformer(num_heads=hp.NUM_HEADS), drop_last=True, shuffle=True)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=BATCH_SIZE, collate_fn=SmartwatchAugmentTransformer(max_input_samples=params['seq_len'][TRANSFORMER_OR_CNNTRANSFORMER], downsample_output_seq=params['downsample_ratio'][TRANSFORMER_OR_CNNTRANSFORMER]), drop_last=True, shuffle=True)
 
     val_dataset = SmartwatchDataset(val_files, params['sample_period'][TRANSFORMER_OR_CNNTRANSFORMER])
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=hp.TRANSFORMER_BATCH_SIZE, collate_fn=SmartwatchAugmentTransformer(num_heads=hp.NUM_HEADS), drop_last=True, shuffle=True)
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=BATCH_SIZE, collate_fn=SmartwatchAugmentTransformer(max_input_samples=params['seq_len'][TRANSFORMER_OR_CNNTRANSFORMER], downsample_output_seq=params['downsample_ratio'][TRANSFORMER_OR_CNNTRANSFORMER]), drop_last=True, shuffle=True)
 
     test_dataset = SmartwatchDataset(test_files, params['sample_period'][TRANSFORMER_OR_CNNTRANSFORMER])
-    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=hp.TRANSFORMER_BATCH_SIZE, collate_fn=SmartwatchAugmentTransformer(num_heads=hp.NUM_HEADS), drop_last=True, shuffle=False)
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=BATCH_SIZE, collate_fn=SmartwatchAugmentTransformer(max_input_samples=params['seq_len'][TRANSFORMER_OR_CNNTRANSFORMER], downsample_output_seq=params['downsample_ratio'][TRANSFORMER_OR_CNNTRANSFORMER]), drop_last=True, shuffle=False)
 
     # Initialize transformer
     transformer_model = TransformerModel(
@@ -70,7 +77,7 @@ def main():
         n_heads=int(params['hidden_size'][TRANSFORMER_OR_CNNTRANSFORMER]/4),
         stride=2,
         kernel_size=15,
-        seq_len=1024,
+        seq_len=params['seq_len'][TRANSFORMER_OR_CNNTRANSFORMER],
         downsample=params['downsample'][TRANSFORMER_OR_CNNTRANSFORMER],
         output_size=7,
         num_encoder_layers=5,
@@ -97,17 +104,18 @@ def main():
             SAVE_PATH,
             writer,
             hp.TEACHER_FORCE_RATIO,
-            checkpoint=None
+            checkpoint=None,
+            batch_size=BATCH_SIZE
         )
 
-    test_Transformer(
-        test_loader,
-        transformer_model,
-        loss_fn,
-        metric_loss_fn,
-        SAVE_PATH,
-        hp.DEVICE,
-    )
+    # test_Transformer(
+    #     test_loader,
+    #     transformer_model,
+    #     loss_fn,
+    #     metric_loss_fn,
+    #     SAVE_PATH,
+    #     hp.DEVICE,
+    # )
 
 if __name__ == '__main__':
     main()
