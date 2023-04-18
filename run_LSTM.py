@@ -16,11 +16,29 @@ from utils.dataset import (
 )
 from utils.utils import test_LSTM
 
+# Cross validation stuff
+START_SUBJECT = 7
+val_subjects = []
+for i in range(START_SUBJECT, (START_SUBJECT+30), 5):
+     val_subjects.append(i)
+
+LSTM_OR_CNNLSTM = 0
+params = {
+    'hidden_size': [32, 64],
+    'dropout': [0.137579431603837, 0.0725343342977065],
+    'channels': [9, 64],
+    'downsample': [False, True],
+    'lr': [0.00239595953758425,0.0016079909971451242],
+    'weight_decay': [0.00016730652977231463, 0.000100786933714903564],
+    'epochs': [38, 35],
+    'lstm_or_cnn-lstm': ['LSTM', 'CNN-LSTM'],
+    'sample_period': [0.04, 0.02],
+}
+
 # Paths
-SAVE_PATH = Path(f'outputs/cross-val/{datetime.now().strftime("%d-%m-%Y_%H%M%S")}')
+SAVE_PATH = Path(f'outputs/cross-val/{params["lstm_or_cnn-lstm"][LSTM_OR_CNNLSTM]}/S{START_SUBJECT}-5-{val_subjects[-1]}/{datetime.now().strftime("%d-%m-%Y_%H%M%S")}')
 
 TRAIN = True
-CNN_DOWNSAMPLE = False
 
 if TRAIN == True:
     from torch.utils.tensorboard import SummaryWriter
@@ -32,38 +50,38 @@ else:
 def main():
     # Get .csv files
     train_files, val_files, test_files = get_file_lists(
-        val_sub_list=['05', 10, 15, 20, 25, 30],
-        test_sub_list=[35],
+        val_sub_list=val_subjects,
+        test_sub_list=[41],
     )
 
     # Get dataloaders
-    train_dataset = SmartwatchDataset(train_files)
+    train_dataset = SmartwatchDataset(train_files, params['sample_period'][LSTM_OR_CNNLSTM])
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(), drop_last=True, shuffle=True)
 
-    val_dataset = SmartwatchDataset(val_files)
+    val_dataset = SmartwatchDataset(val_files, params['sample_period'][LSTM_OR_CNNLSTM])
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(), drop_last=True, shuffle=True)
 
-    test_dataset = SmartwatchDataset(test_files)
+    test_dataset = SmartwatchDataset(test_files, params['sample_period'][LSTM_OR_CNNLSTM])
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(), drop_last=True, shuffle=False)
 
     # Initialize encoder and decoder
     encoder_model = Encoder(
         input_size=9,
-        hidden_size=32,
+        hidden_size=params['hidden_size'][LSTM_OR_CNNLSTM],
         num_layers=1,
-        dropout_p=0.137579431603837,
-        channels=[9],
+        dropout_p=params['dropout'][LSTM_OR_CNNLSTM],
+        channels=params['channels'][LSTM_OR_CNNLSTM],
         stride=2,
         kernel_size=63,
-        seq_len=512,
-        downsample=CNN_DOWNSAMPLE,
+        seq_len=1024,
+        downsample=params['downsample'][LSTM_OR_CNNLSTM],
     ).to(hp.DEVICE)
     decoder_model = Decoder(
         input_size=7,
-        hidden_size=32,
+        hidden_size=params['hidden_size'][LSTM_OR_CNNLSTM],
         output_size=7,
         num_layers=1,
-        dropout_p=0.137579431603837,
+        dropout_p=params['dropout'][LSTM_OR_CNNLSTM],
     ).to(hp.DEVICE)
 
     # Initialize loss functions
@@ -71,8 +89,8 @@ def main():
     metric_loss_fn = nn.L1Loss()
 
     # Initialize optimizers
-    encoder_optimizer = optim.Adam(encoder_model.parameters(), lr=0.00239595953758425, weight_decay=0.00016730652977231463)
-    decoder_optimizer = optim.Adam(decoder_model.parameters(), lr=0.00239595953758425, weight_decay=0.00016730652977231463)
+    encoder_optimizer = optim.Adam(encoder_model.parameters(), lr=params['lr'][LSTM_OR_CNNLSTM], weight_decay=params['weight_decay'][LSTM_OR_CNNLSTM])
+    decoder_optimizer = optim.Adam(decoder_model.parameters(), lr=params['lr'][LSTM_OR_CNNLSTM], weight_decay=params['weight_decay'][LSTM_OR_CNNLSTM])
     if TRAIN == True:
         _ = LSTM_train_fn(
             train_loader,
@@ -83,7 +101,7 @@ def main():
             decoder_optimizer,
             loss_fn,
             metric_loss_fn,
-            38,
+            params['epochs'][LSTM_OR_CNNLSTM],
             hp.DEVICE,
             SAVE_PATH,
             writer,
@@ -91,15 +109,15 @@ def main():
             checkpoint=None,
         )
 
-    test_LSTM(
-        test_loader,
-        encoder_model,
-        decoder_model,
-        loss_fn,
-        metric_loss_fn,
-        TEST_PATH,
-        hp.DEVICE,
-    )
+    # test_LSTM(
+    #     test_loader,
+    #     encoder_model,
+    #     decoder_model,
+    #     loss_fn,
+    #     metric_loss_fn,
+    #     TEST_PATH,
+    #     hp.DEVICE,
+    # )
 
 if __name__ == '__main__':
     main()

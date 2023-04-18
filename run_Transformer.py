@@ -16,9 +16,26 @@ from utils.dataset import (
 )
 from utils.utils import test_Transformer
 
-# Paths
-SAVE_PATH = Path(f'outputs/{datetime.now().strftime("%d-%m-%Y_%H%M%S")}')
+# Cross validation stuff
+START_SUBJECT = 7
+val_subjects = []
+for i in range(START_SUBJECT, (START_SUBJECT+30), 5):
+     val_subjects.append(i)
 
+TRANSFORMER_OR_CNNTRANSFORMER = 0
+params = {
+    'hidden_size': [32, 128],
+    'dropout': [0.06315639803617487, 0.08700484164091785],
+    'downsample': [False, True],
+    'lr': [0.002953296290952476, 0.005599919411324668],
+    'weight_decay': [0.0001295885340230645, 0.00016240741640480654],
+    'epochs': [37, 30],
+    'transformer_or_cnntransformer': ['Transformer', 'CNN-Transformer'],
+    'sample_period': [0.04, 0.02],
+}
+
+# Paths
+SAVE_PATH = Path(f'outputs/cross-val/{params["transformer_or_cnntransformer"][TRANSFORMER_OR_CNNTRANSFORMER]}/S{START_SUBJECT}-5-{val_subjects[-1]}/{datetime.now().strftime("%d-%m-%Y_%H%M%S")}')
 TRAIN = True
 
 if TRAIN == True:
@@ -36,22 +53,28 @@ def main():
     )
 
     # Get dataloaders
-    train_dataset = SmartwatchDataset(train_files)
+    train_dataset = SmartwatchDataset(train_files, params['sample_period'][TRANSFORMER_OR_CNNTRANSFORMER])
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=hp.TRANSFORMER_BATCH_SIZE, collate_fn=SmartwatchAugmentTransformer(num_heads=hp.NUM_HEADS), drop_last=True, shuffle=True)
 
-    val_dataset = SmartwatchDataset(val_files)
+    val_dataset = SmartwatchDataset(val_files, params['sample_period'][TRANSFORMER_OR_CNNTRANSFORMER])
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=hp.TRANSFORMER_BATCH_SIZE, collate_fn=SmartwatchAugmentTransformer(num_heads=hp.NUM_HEADS), drop_last=True, shuffle=True)
 
-    test_dataset = SmartwatchDataset(test_files)
+    test_dataset = SmartwatchDataset(test_files, params['sample_period'][TRANSFORMER_OR_CNNTRANSFORMER])
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=hp.TRANSFORMER_BATCH_SIZE, collate_fn=SmartwatchAugmentTransformer(num_heads=hp.NUM_HEADS), drop_last=True, shuffle=False)
 
     # Initialize transformer
     transformer_model = TransformerModel(
         input_size=9,
-        dropout=0.1,
-        n_heads=hp.NUM_HEADS,
-        num_encoder_layers=1,
-        num_decoder_layers=1
+        d_model=params['hidden_size'][TRANSFORMER_OR_CNNTRANSFORMER],
+        dropout=params['dropout'][TRANSFORMER_OR_CNNTRANSFORMER],
+        n_heads=int(params['hidden_size'][TRANSFORMER_OR_CNNTRANSFORMER]/4),
+        stride=2,
+        kernel_size=15,
+        seq_len=1024,
+        downsample=params['downsample'][TRANSFORMER_OR_CNNTRANSFORMER],
+        output_size=7,
+        num_encoder_layers=5,
+        num_decoder_layers=5
     ).to(hp.DEVICE)
 
     # Initialize loss functions
@@ -59,7 +82,7 @@ def main():
     metric_loss_fn = nn.L1Loss()
 
     # Initialize optimizers
-    transformer_optimizer = optim.Adam(transformer_model.parameters(), lr=hp.TRANSFORMER_LEARNING_RATE)
+    transformer_optimizer = optim.Adam(transformer_model.parameters(), lr=params['lr'][TRANSFORMER_OR_CNNTRANSFORMER], weight_decay=params['weight_decay'][TRANSFORMER_OR_CNNTRANSFORMER])
 
     if TRAIN == True:
         Transformer_train_fn(
@@ -69,7 +92,7 @@ def main():
             transformer_optimizer,
             loss_fn,
             metric_loss_fn,
-            hp.NUM_EPOCH,
+            params['epochs'][TRANSFORMER_OR_CNNTRANSFORMER],
             hp.DEVICE,
             SAVE_PATH,
             writer,
