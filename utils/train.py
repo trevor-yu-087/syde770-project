@@ -59,6 +59,7 @@ def LSTM_train_fn(
                 decoder_output, decoder_hidden, decoder_cell = decoder_model(train_target, encoder_hidden, encoder_cell)
             elif train_step != 0 and teacher_force == False:
                 for i in range(1, 512):
+                    start = [start[i] for i in range(start.shape[0])]
                     start = torch.nn.utils.rnn.pack_sequence(start)
                     decoder_output[:, i, :], decoder_hidden, decoder_cell = decoder_model(start, encoder_hidden, encoder_cell)
                     start = train_target_unpacked[:, i, :].unsqueeze(1)
