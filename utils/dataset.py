@@ -310,12 +310,14 @@ class SmartwatchAugmentTransformer:
 def get_file_lists(
         val_sub_list, 
         test_sub_list,
+        valid_files_path,
     ):
     """Get list of files to pass to dataset class
     Parameters:
     -----------
     val_sub_list: list of subject numbers for validation
     test_sub_list: list of subject numbers for testing
+    valid_files_path: path to folder with subjects
     ***Note: subjects '01' - '09' must be entered as strings in the list
     Returns:
     --------
@@ -324,13 +326,14 @@ def get_file_lists(
     test_files: list of str filepaths to pre-processed test data
     """
     import glob
-    valid_files = glob.glob("~/scratch/syde770_processed_data/subjects/*/*_full.csv")
+    from pathlib import Path
+    valid_files = list(valid_files_path.glob("*/*_full.csv"))
 
     val_subjects = [f"S{n}" for n in val_sub_list]
-    val_files = [file for file in valid_files for subject in val_subjects if f"/{subject}/" in file]
+    val_files = [file for file in valid_files for subject in val_subjects if subject in str(file.resolve())]
 
     test_subjects = [f"S{n}" for n in test_sub_list]
-    test_files = [file for file in valid_files for subject in test_subjects if f"/{subject}/" in file]
+    test_files = [file for file in valid_files for subject in test_subjects if subject in str(file.resolve())]
 
-    train_files = [file for file in valid_files if file not in set(val_files + test_files)]
+    train_files = [file for file in valid_files if str(file.resolve()) not in set(val_files + test_files)]
     return train_files, val_files, test_files
