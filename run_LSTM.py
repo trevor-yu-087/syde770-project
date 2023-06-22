@@ -52,6 +52,7 @@ def main():
     train_files, val_files, test_files = get_file_lists(
         val_sub_list=val_subjects,
         test_sub_list=[41],
+        valid_files_path=Path(r'E:\smartwatch\subjects')
     )
 
     # Get dataloaders

@@ -45,7 +45,7 @@ def LSTM_train_fn(
             decoder_output = torch.zeros(hp.BATCH_SIZE, 512, 7).to(device)
             train_target_unpacked, _ = torch.nn.utils.rnn.pad_packed_sequence(train_target, batch_first=True)
             train_target_unpacked.to(device)
-            start = train_target_unpacked[:, 0, :].unsqueeze(1).to(device)
+            # start = train_target_unpacked[:, 0, :].unsqueeze(1).to(device)
             teacher_force = True if random.random() < teacher_force_ratio else False
 
             encoder_hidden, encoder_cell = encoder_model(train_source)
@@ -58,10 +58,11 @@ def LSTM_train_fn(
             elif train_step !=0 and teacher_force == True:
                 decoder_output, decoder_hidden, decoder_cell = decoder_model(train_target, encoder_hidden, encoder_cell)
             elif train_step != 0 and teacher_force == False:
-                for i in range(1, 512):
+                for i in range(0, train_target_unpacked.shape[1]): # cycle through all elements of sequence
+                    start = train_target_unpacked[:, i, :].unsqueeze(1).to(device)
+                    start = [start[i] for i in range(start.shape[0])]
                     start = torch.nn.utils.rnn.pack_sequence(start)
                     decoder_output[:, i, :], decoder_hidden, decoder_cell = decoder_model(start, encoder_hidden, encoder_cell)
-                    start = train_target_unpacked[:, i, :].unsqueeze(1)
                     encoder_hidden = decoder_hidden
                     encoder_cell = decoder_cell
 
