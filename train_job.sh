@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH --time=0-12:00:00
+#SBATCH --time=0-1:00:00
 #SBATCH --account=def-s2mclach
 #SBATCH --mem=32000M            # memory per node
 #SBATCH --gpus-per-node=1
-#SBATCH --cpus-per-task=20       # CPU cores/threads
+#SBATCH --cpus-per-task=4       # CPU cores/threads
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=jh3chu@uwaterloo.ca
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
@@ -15,8 +15,11 @@ nvidia-smi
 module load python/3.10 cuda cudnn
 
 # Activate your enviroment
-source ~/envs/syde770/bin/activate
-
+source ~/envs/lstm-transf/bin/activate
 cd ~/workspace/syde770-project
 
-python tune_CNNLSTM.py
+# launch tensorboard
+tensorboard --logdir='~/scratch/lstm-transformer/outputs' --host 0.0.0.0 --load_fast false &
+
+# run script
+python run_LSTM.py
