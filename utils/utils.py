@@ -1,8 +1,176 @@
 import os
+from glob import glob
+
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from glob import glob
-import matplotlib.pyplot as plt
+import torch.nn as nn
+import torch.optim as optim
+
+import model.hyperparameters as hp
+from model.seq2seq_LSTM import Decoder, Encoder
+from utils.train import LSTM_train_fn
+from model.Transformer import TransformerModel
+from utils.train import Transformer_train_fn
+
+
+def run_lstm (train_loader, val_loader, downsample, save_path, writer, enable_checkpoints, params = None):
+    # Initialize encoder and decoder
+    encoder_model = Encoder(
+        input_size=9,
+        hidden_size=params['hidden_size'][0],
+        num_layers=1,
+        dropout_p=params['dropout'][0],
+        channels=params['channels'][0],
+        stride=2,
+        kernel_size=63,
+        seq_len=1024,
+        downsample=downsample,
+    ).to(hp.DEVICE)
+    decoder_model = Decoder(
+        input_size=7,
+        hidden_size=params['hidden_size'][0],
+        output_size=7,
+        num_layers=1,
+        dropout_p=params['dropout'][0],
+    ).to(hp.DEVICE)
+
+    # Initialize loss functions
+    loss_fn = nn.MSELoss()
+    metric_loss_fn = nn.L1Loss()
+
+    # Initialize optimizers
+    encoder_optimizer = optim.Adam(
+        encoder_model.parameters(), 
+        lr=params['lr'][0], 
+        weight_decay=params['weight_decay'][0]
+        )
+    decoder_optimizer = optim.Adam(
+        decoder_model.parameters(), 
+        lr=params['lr'][0], 
+        weight_decay=params['weight_decay'][0]
+        )
+
+    # train
+    _ = LSTM_train_fn(
+        train_loader,
+        val_loader,
+        encoder_model,
+        decoder_model,
+        encoder_optimizer,
+        decoder_optimizer,
+        loss_fn,
+        metric_loss_fn,
+        params['epochs'][0],
+        hp.DEVICE,
+        save_path,
+        writer,
+        hp.TEACHER_FORCE_RATIO,
+        enable_checkpoints,
+        checkpoint=None,
+    )
+
+def run_cnnlstm (train_loader, val_loader, downsample, save_path, writer, enable_checkpoints, params = None):
+    # Initialize encoder and decoder
+    encoder_model = Encoder(
+        input_size=9,
+        hidden_size=params['hidden_size'][1],
+        num_layers=1,
+        dropout_p=params['dropout'][1],
+        channels=params['channels'][1],
+        stride=2,
+        kernel_size=63,
+        seq_len=1024,
+        downsample=downsample,
+    ).to(hp.DEVICE)
+    decoder_model = Decoder(
+        input_size=7,
+        hidden_size=params['hidden_size'][1],
+        output_size=7,
+        num_layers=1,
+        dropout_p=params['dropout'][1],
+    ).to(hp.DEVICE)
+
+    # Initialize loss functions
+    loss_fn = nn.MSELoss()
+    metric_loss_fn = nn.L1Loss()
+
+    # Initialize optimizers
+    encoder_optimizer = optim.Adam(
+        encoder_model.parameters(), 
+        lr=params['lr'][1], 
+        # weight_decay=params['weight_decay'][1]
+    )
+    decoder_optimizer = optim.Adam(
+        decoder_model.parameters(), 
+        lr=params['lr'][1], 
+        # weight_decay=params['weight_decay'][1]
+    )
+
+    # train
+    _ = LSTM_train_fn(
+        train_loader,
+        val_loader,
+        encoder_model,
+        decoder_model,
+        encoder_optimizer,
+        decoder_optimizer,
+        loss_fn,
+        metric_loss_fn,
+        params['epochs'][1],
+        hp.DEVICE,
+        save_path,
+        writer,
+        hp.TEACHER_FORCE_RATIO,
+        enable_checkpoints,
+        checkpoint=None,
+    )
+
+def run_transformer(train_loader, val_loader, downsample, save_path, writer, enable_checkpoints, params = None):
+    # Initialize transformer
+    transformer_model = TransformerModel(
+        input_size=9,
+        d_model=params['hidden_size'][0],
+        dropout=params['dropout'][0],
+        n_heads=int(params['hidden_size'][0]/4),
+        stride=2,
+        kernel_size=15,
+        seq_len=params['seq_len'][0],
+        downsample=downsample,
+        output_size=7,
+        num_encoder_layers=5,
+        num_decoder_layers=5
+    ).to(hp.DEVICE)
+
+    # pytorch_total_params = sum(p.numel() for p in transformer_model.parameters())
+    # print(f"Model params: {pytorch_total_params}")
+
+    # Initialize loss functions
+    loss_fn = nn.MSELoss()
+    metric_loss_fn = nn.L1Loss()
+
+    # Initialize optimizers
+    transformer_optimizer = optim.Adam(
+        transformer_model.parameters(), 
+        lr=params['lr'][0], 
+        weight_decay=params['weight_decay'][0]
+    )
+
+    Transformer_train_fn(
+        train_loader,
+        val_loader,
+        transformer_model,
+        transformer_optimizer,
+        loss_fn,
+        metric_loss_fn,
+        params['epochs'][0],
+        hp.DEVICE,
+        save_path,
+        writer,
+        hp.TRANSFORMER_TEACHER_FORCE_RATIO,
+        checkpoint=None,
+        batch_size=hp.BATCH_SIZE
+    )
 
 def load_checkpoint(encoder_model, decoder_model, path):
     """Load checkpoint into LSTM test model
