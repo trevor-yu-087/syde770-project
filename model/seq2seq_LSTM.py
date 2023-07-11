@@ -53,6 +53,7 @@ class Encoder(nn.Module):
         if self.downsample == True:
             input, _ = torch.nn.utils.rnn.pad_packed_sequence(input, batch_first=True)
             input = self.CNN_downsample(input)
+            input = [input[i] for i in range(input.shape[0])]
             input = torch.nn.utils.rnn.pack_sequence(input)
         output, (hidden, cell) = self.LSTM(input)
         
