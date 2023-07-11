@@ -19,8 +19,9 @@ def LSTM_train_fn(
         save_path,
         writer,
         teacher_force_ratio=1,
-        val_interval=1,
+        enable_checkpoint=False,
         checkpoint=None,
+        val_interval=1,
 ):
     best_metric = 1e4
     val_loss_values = []
@@ -68,8 +69,16 @@ def LSTM_train_fn(
 
             train_loss = loss_fn(decoder_output, train_target_unpacked)
 
+            if torch.isnan(train_loss):
+                print(f'Epoch: {epoch} \t Step: {train_step}')
+                raise ValueError('Train loss returns NAN value')
+
             # Backwards
             train_loss.backward()
+
+            # # gradient clipping
+            # nn.utils.clip_grad_norm_(encoder_model.parameters(), 5)
+            # nn.utils.clip_grad_norm_(decoder_model.parameters(), 5)
 
             # Update optimizers
             encoder_optimizer.step()
@@ -126,27 +135,28 @@ def LSTM_train_fn(
                 val_metric_values.append(epoch_val_metric)
 
 
-                 # Save checkpoint
-                if not os.path.exists(os.path.join(save_path, 'checkpoint')):
-                    os.makedirs(os.path.join(save_path, 'checkpoint'))
-                torch.save({'epoch': epoch,
-                            'encoder_model_state_dict': encoder_model.state_dict(),
-                            'decoder_model_state_dict': decoder_model.state_dict(),
-                            'encoder_optim_state_dict': encoder_optimizer.state_dict(),
-                            'decoder_optim_state_dict': decoder_optimizer.state_dict(),
-                            'train_loss': epoch_train_loss,
-                            'val_loss': epoch_val_loss},
-                           os.path.join(save_path, 'checkpoint', 'checkpoint_{}.pth'.format(epoch))
-                           )
-                
-                # Save best model
-                if not os.path.exists(os.path.join(save_path, 'best')):
-                    os.makedirs(os.path.join(save_path, 'best'))
-                if epoch_val_metric < best_metric:
-                    best_metric = epoch_val_metric
-                    best_metric_epoch = epoch
-                    torch.save(encoder_model.state_dict(), os.path.join(save_path, 'best', 'best_encoder_model.pth'))
-                    torch.save(decoder_model.state_dict(), os.path.join(save_path, 'best', 'best_decoder_model.pth'))
+                # Save checkpoint
+                if enable_checkpoint:
+                    if not os.path.exists(os.path.join(save_path, 'checkpoint')):
+                        os.makedirs(os.path.join(save_path, 'checkpoint'))
+                    torch.save({'epoch': epoch,
+                                'encoder_model_state_dict': encoder_model.state_dict(),
+                                'decoder_model_state_dict': decoder_model.state_dict(),
+                                'encoder_optim_state_dict': encoder_optimizer.state_dict(),
+                                'decoder_optim_state_dict': decoder_optimizer.state_dict(),
+                                'train_loss': epoch_train_loss,
+                                'val_loss': epoch_val_loss},
+                            os.path.join(save_path, 'checkpoint', 'checkpoint_{}.pth'.format(epoch))
+                            )
+                    
+                    # Save best model
+                    if not os.path.exists(os.path.join(save_path, 'best')):
+                        os.makedirs(os.path.join(save_path, 'best'))
+                    if epoch_val_metric < best_metric:
+                        best_metric = epoch_val_metric
+                        best_metric_epoch = epoch
+                        torch.save(encoder_model.state_dict(), os.path.join(save_path, 'best', 'best_encoder_model.pth'))
+                        torch.save(decoder_model.state_dict(), os.path.join(save_path, 'best', 'best_decoder_model.pth'))
 
     writer.close()
     return val_loss_values
