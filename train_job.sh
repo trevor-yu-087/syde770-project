@@ -22,4 +22,4 @@ cd ~/workspace/syde770-project
 tensorboard --logdir='~/scratch/lstm-transformer/outputs' --host 0.0.0.0 --load_fast false &
 
 # run script
-python run_LSTM.py
+python run.py run ~/scratch/lstm-transformer/subjects_2023-07-12/cc_data.json ~/scratch/lstm-transformer/outputs cnn-transformer --enable-checkpoints
