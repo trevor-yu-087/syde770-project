@@ -168,8 +168,56 @@ def run_transformer(train_loader, val_loader, downsample, save_path, writer, ena
         save_path,
         writer,
         hp.TRANSFORMER_TEACHER_FORCE_RATIO,
+        enable_checkpoints,
         checkpoint=None,
-        batch_size=hp.BATCH_SIZE
+        batch_size=hp.BATCH_SIZE,
+    )
+
+def run_cnntransformer(train_loader, val_loader, downsample, save_path, writer, enable_checkpoints, params = None):
+        # Initialize transformer
+    transformer_model = TransformerModel(
+        input_size=9,
+        d_model=params['hidden_size'][1],
+        dropout=params['dropout'][1],
+        n_heads=int(params['hidden_size'][1]/4),
+        stride=2,
+        kernel_size=15,
+        seq_len=params['seq_len'][1],
+        downsample=downsample,
+        output_size=7,
+        num_encoder_layers=5,
+        num_decoder_layers=5
+    ).to(hp.DEVICE)
+
+    # pytorch_total_params = sum(p.numel() for p in transformer_model.parameters())
+    # print(f"Model params: {pytorch_total_params}")
+
+    # Initialize loss functions
+    loss_fn = nn.MSELoss()
+    metric_loss_fn = nn.L1Loss()
+
+    # Initialize optimizers
+    transformer_optimizer = optim.Adam(
+        transformer_model.parameters(), 
+        lr=params['lr'][1], 
+        weight_decay=params['weight_decay'][1]
+    )
+
+    Transformer_train_fn(
+        train_loader,
+        val_loader,
+        transformer_model,
+        transformer_optimizer,
+        loss_fn,
+        metric_loss_fn,
+        params['epochs'][1],
+        hp.DEVICE,
+        save_path,
+        writer,
+        hp.TRANSFORMER_TEACHER_FORCE_RATIO,
+        enable_checkpoints,
+        checkpoint=None,
+        batch_size=hp.BATCH_SIZE,
     )
 
 def load_checkpoint(encoder_model, decoder_model, path):
@@ -300,7 +348,7 @@ def test_LSTM(
     np.save(f'{path}/targets.npy', np.array(targets, dtype=object), allow_pickle=True)
 
 
-def test_Transformer(
+def test_transformer(
         test_loader,
         transformer_model,
         loss_fn,

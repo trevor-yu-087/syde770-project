@@ -14,6 +14,7 @@ from utils.train import LSTM_train_fn
 from utils.dataset import (
     SmartwatchDataset, 
     SmartwatchAugmentLstm, 
+    SmartwatchAugmentTransformer, 
     get_file_lists
 )
 from utils.utils import (
@@ -63,15 +64,6 @@ def run(
     val_files = valid_files['val']
     test_files = valid_files['test']
 
-    train_dataset = SmartwatchDataset(train_files, sample_period)
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(), drop_last=True, shuffle=False)
-
-    val_dataset = SmartwatchDataset(val_files, sample_period)
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(), drop_last=True, shuffle=False)
-
-    test_dataset = SmartwatchDataset(test_files, sample_period)
-    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(), drop_last=True, shuffle=False)
-    
     lstm_params = {
         'hidden_size': [32, 64],
         'dropout': [0.137579431603837, 0.1],
@@ -101,7 +93,17 @@ def run(
     #     'epochs': 38,
     # }
     if model == 'lstm':
-        run_lstm(
+        train_dataset = SmartwatchDataset(train_files, sample_period)
+        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(), drop_last=True, shuffle=False)
+
+        val_dataset = SmartwatchDataset(val_files, sample_period)
+        val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(), drop_last=True, shuffle=False)
+
+        test_dataset = SmartwatchDataset(test_files, sample_period)
+        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(), drop_last=True, shuffle=False)
+
+        if model == 'cnn-lstm':
+            run_cnnlstm(
             train_loader,
             val_loader,
             downsample,
@@ -110,20 +112,108 @@ def run(
             enable_checkpoints,
             lstm_params,
         )
-    elif model == 'cnn-lstm':
-        run_cnnlstm(
-            train_loader,
-            val_loader,
-            downsample,
-            SAVE_PATH,
-            writer,
-            enable_checkpoints,
-            lstm_params,
-        )
+        else:
+            run_lstm(
+                train_loader,
+                val_loader,
+                downsample,
+                SAVE_PATH,
+                writer,
+                enable_checkpoints,
+                lstm_params,
+            )
+        
     elif model == 'transformer':
-        pass
+        train_dataset = SmartwatchDataset(train_files, sample_period)
+        train_loader = torch.utils.data.DataLoader(
+            train_dataset, 
+            batch_size=hp.TRANSFORMER_BATCH_SIZE, 
+            collate_fn=SmartwatchAugmentTransformer(
+                max_input_samples=transformer_params['seq_len'][0], 
+                downsample_output_seq=transformer_params['downsample_ratio'][0]
+            ), 
+            drop_last=True, 
+            shuffle=False
+        )
+
+        val_dataset = SmartwatchDataset(val_files, sample_period)
+        val_loader = torch.utils.data.DataLoader(
+            val_dataset, 
+            batch_size=hp.TRANSFORMER_BATCH_SIZE, 
+            collate_fn=SmartwatchAugmentTransformer(
+                max_input_samples=transformer_params['seq_len'][0], 
+                downsample_output_seq=transformer_params['downsample_ratio'][0]
+            ), 
+            drop_last=True, 
+            shuffle=False
+        )
+
+        test_dataset = SmartwatchDataset(test_files, sample_period)
+        test_loader = torch.utils.data.DataLoader(
+            test_dataset, 
+            batch_size=hp.TRANSFORMER_BATCH_SIZE, 
+            collate_fn=SmartwatchAugmentTransformer(
+                max_input_samples=transformer_params['seq_len'][0], 
+                downsample_output_seq=transformer_params['downsample_ratio'][0]
+            ), 
+            drop_last=True, 
+            shuffle=False
+        )
+
+        run_transformer(
+            train_loader,
+            val_loader,
+            downsample,
+            SAVE_PATH,
+            writer,
+            enable_checkpoints,
+            transformer_params,
+        )
     elif model == 'cnn-transformer':
-        pass
+        train_dataset = SmartwatchDataset(train_files, sample_period)
+        train_loader = torch.utils.data.DataLoader(
+            train_dataset, 
+            batch_size=hp.TRANSFORMER_BATCH_SIZE, 
+            collate_fn=SmartwatchAugmentTransformer(
+                max_input_samples=transformer_params['seq_len'][1], 
+                downsample_output_seq=transformer_params['downsample_ratio'][1]
+            ), 
+            drop_last=True, 
+            shuffle=False
+        )
+
+        val_dataset = SmartwatchDataset(val_files, sample_period)
+        val_loader = torch.utils.data.DataLoader(
+            val_dataset, 
+            batch_size=hp.TRANSFORMER_BATCH_SIZE, 
+            collate_fn=SmartwatchAugmentTransformer(
+                max_input_samples=transformer_params['seq_len'][1], 
+                downsample_output_seq=transformer_params['downsample_ratio'][1]
+            ), 
+            drop_last=True, 
+            shuffle=False
+        )
+
+        test_dataset = SmartwatchDataset(test_files, sample_period)
+        test_loader = torch.utils.data.DataLoader(
+            test_dataset, 
+            batch_size=hp.TRANSFORMER_BATCH_SIZE, 
+            collate_fn=SmartwatchAugmentTransformer(
+                max_input_samples=transformer_params['seq_len'][1], 
+                downsample_output_seq=transformer_params['downsample_ratio'][1]
+            ), 
+            drop_last=True, 
+            shuffle=False
+        )
+        run_cnntransformer(
+            train_loader,
+            val_loader,
+            downsample,
+            SAVE_PATH,
+            writer,
+            enable_checkpoints,
+            transformer_params,
+        )
 
 @app.command()
 def tune(
