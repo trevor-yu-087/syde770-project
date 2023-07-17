@@ -119,6 +119,10 @@ def LSTM_train_fn(
 
                     val_loss = loss_fn(val_decoder_output, val_target_unpacked)
 
+                    if torch.isnan(val_loss):
+                        print(f'Epoch: {epoch} \t Step: {val_step}')
+                        # raise ValueError('Val loss returns NAN value')
+
                     # Val loss
                     epoch_val_loss += val_loss.item()
 
@@ -133,7 +137,9 @@ def LSTM_train_fn(
                 epoch_val_metric /= (val_step+1)
                 writer.add_scalar('Validation MAE per Epoch', epoch_val_metric, epoch)
                 val_metric_values.append(epoch_val_metric)
-
+                
+                print(f"Epoch {epoch} MSE Loss: {epoch_val_loss}")
+                print(f"Epoch {epoch} MAE: {epoch_val_metric}")
 
                 # Save checkpoint
                 if enable_checkpoint:
@@ -174,9 +180,10 @@ def Transformer_train_fn(
         save_path,
         writer,
         teacher_force_ratio=1,
-        val_interval=1,
+        enable_checkpoint=False,
         checkpoint=None,
-        batch_size=1
+        batch_size=1,
+        val_interval=1,
 ):
     best_metric = 1e4
     val_loss_values = []
@@ -202,7 +209,7 @@ def Transformer_train_fn(
             transformer_output = torch.zeros(batch_size, 512, 7).to(device)
             train_target.to(device)
             #src_start = train_source[:, 0, :].unsqueeze(1).to(device)
-            start = train_target[:, 0, :].unsqueeze(1).to(device)
+            # start = train_target[:, 0, :].unsqueeze(1).to(device)
             teacher_force = True if random.random() < teacher_force_ratio else False
 
 
@@ -217,12 +224,17 @@ def Transformer_train_fn(
                                                         tgt_padding=target_padding, tgt_lookahead=target_lookahead)
 
             elif train_step != 0 and teacher_force == False:
-                for i in range(1, 512):
+                # for i in range(1, 512):
+                for i in range(0, 512):
+                    start = train_target[:, i, :].unsqueeze(1).to(device)
                     transformer_output[:, i, :] = transformer_model(src=train_source, tgt=start)
-                    start = train_target[:, i, :].unsqueeze(1)
+                    # start = train_target[:, i, :].unsqueeze(1)
 
 
             train_loss = loss_fn(transformer_output, train_target)
+
+            if torch.isnan(train_loss):
+                raise ValueError(f'Train loss returns NAN value \nEpoch: {epoch} \t Step: {train_step}')
 
             # Backwards
             train_loss.backward()
@@ -259,6 +271,10 @@ def Transformer_train_fn(
 
                     val_loss = loss_fn(val_transformer_output, val_target)
 
+                    if torch.isnan(val_loss):
+                        print(f'Loss NAN - Epoch: {epoch} \t Step: {val_step}')
+                        # raise ValueError('Val loss returns NAN value')
+
                     # Val loss
                     epoch_val_loss += val_loss.item()
 
@@ -278,24 +294,25 @@ def Transformer_train_fn(
                 print(f"Epoch {epoch} MAE: {epoch_val_metric}")
 
 
-                 # Save checkpoint
-                if not os.path.exists(os.path.join(save_path, 'checkpoint')):
-                    os.makedirs(os.path.join(save_path, 'checkpoint'))
-                torch.save({'epoch': epoch,
-                            'transformer_model_state_dict': transformer_model.state_dict(),
-                            'transformer_optim_state_dict': transformer_optimizer.state_dict(),
-                            'train_loss': epoch_train_loss,
-                            'val_loss': epoch_val_loss},
-                           os.path.join(save_path, 'checkpoint', 'checkpoint_{}.pth'.format(epoch))
-                           )
-                
-                # Save best model
-                if not os.path.exists(os.path.join(save_path, 'best')):
-                    os.makedirs(os.path.join(save_path, 'best'))
-                if epoch_val_metric < best_metric:
-                    best_metric = epoch_val_metric
-                    best_metric_epoch = epoch
-                    torch.save(transformer_model.state_dict(), os.path.join(save_path, 'best', 'best_transformer_model.pth'))
+                # Save checkpoint
+                if enable_checkpoint:
+                    if not os.path.exists(os.path.join(save_path, 'checkpoint')):
+                        os.makedirs(os.path.join(save_path, 'checkpoint'))
+                    torch.save({'epoch': epoch,
+                                'transformer_model_state_dict': transformer_model.state_dict(),
+                                'transformer_optim_state_dict': transformer_optimizer.state_dict(),
+                                'train_loss': epoch_train_loss,
+                                'val_loss': epoch_val_loss},
+                            os.path.join(save_path, 'checkpoint', 'checkpoint_{}.pth'.format(epoch))
+                            )
+                    
+                    # Save best model
+                    if not os.path.exists(os.path.join(save_path, 'best')):
+                        os.makedirs(os.path.join(save_path, 'best'))
+                    if epoch_val_metric < best_metric:
+                        best_metric = epoch_val_metric
+                        best_metric_epoch = epoch
+                        torch.save(transformer_model.state_dict(), os.path.join(save_path, 'best', 'best_transformer_model.pth'))
 
     writer.close()
     return val_loss_values
