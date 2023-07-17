@@ -6,9 +6,6 @@ import math
 
 from model.cnn_downsample import CNN_downsample
 
-# Based on tutorial: https://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html#training-the-model
-# and https://www.youtube.com/watch?v=EoGUlvhRYpk&ab_channel=AladdinPersson
-
 class PositionalEncoding(nn.Module):
 
     def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
