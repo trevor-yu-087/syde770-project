@@ -41,6 +41,7 @@ def run(
     # create output save path
     SAVE_PATH = Path(f'{save_dir}/outputs/{model}/{datetime.now().strftime("%d-%m-%Y_%H%M%S")}')
     print(f'CUDA available: {torch.cuda.is_available()}')
+    print(f'Running {model} \nSave path: {SAVE_PATH}')
 
     from torch.utils.tensorboard import SummaryWriter
     writer = SummaryWriter(log_dir=f'{SAVE_PATH}/tensorboard')
