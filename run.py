@@ -101,7 +101,7 @@ def run(
         val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(), drop_last=True, shuffle=False)
 
         test_dataset = SmartwatchDataset(test_files, sample_period)
-        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(), drop_last=True, shuffle=False)
+        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(augment=False), drop_last=True, shuffle=False)
 
         if model == 'cnn-lstm':
             run_cnnlstm(
@@ -155,7 +155,8 @@ def run(
             batch_size=hp.TRANSFORMER_BATCH_SIZE, 
             collate_fn=SmartwatchAugmentTransformer(
                 max_input_samples=transformer_params['seq_len'][0], 
-                downsample_output_seq=transformer_params['downsample_ratio'][0]
+                downsample_output_seq=transformer_params['downsample_ratio'][0],
+                augment=False,
             ), 
             drop_last=True, 
             shuffle=False
@@ -201,7 +202,8 @@ def run(
             batch_size=hp.TRANSFORMER_BATCH_SIZE, 
             collate_fn=SmartwatchAugmentTransformer(
                 max_input_samples=transformer_params['seq_len'][1], 
-                downsample_output_seq=transformer_params['downsample_ratio'][1]
+                downsample_output_seq=transformer_params['downsample_ratio'][1],
+                augment=False,
             ), 
             drop_last=True, 
             shuffle=False
