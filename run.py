@@ -13,11 +13,12 @@ import model.hyperparameters as hp
 from utils.train import LSTM_train_fn
 from utils.dataset import (
     SmartwatchDataset, 
+    SmartwatchAugmentCnn,
     SmartwatchAugmentLstm, 
     SmartwatchAugmentTransformer, 
-    get_file_lists
 )
 from utils.utils import (
+    run_cnn,
     run_lstm, 
     run_cnnlstm, 
     run_transformer, 
@@ -33,7 +34,7 @@ app = typer.Typer()
 def run(
     data_json: Path,
     save_dir: Path,
-    model: str, # lstm, cnn-lstm, transformer, or cnn-transformer
+    model: str, # cnn, lstm, cnn-lstm, transformer, or cnn-transformer
     test_model: bool = False, # run test after training
     enable_checkpoints: bool = False,
 ):
@@ -48,7 +49,7 @@ def run(
     TEST_PATH = SAVE_PATH
 
     # parameters for models
-    if model == 'lstm' or model =='transformer':
+    if model == 'lstm' or model =='transformer' or model == 'cnn':
         sample_period = 0.04
         downsample = False
     elif model == 'cnn-lstm' or model == 'cnn-transformer':
@@ -57,13 +58,14 @@ def run(
     else:
         raise Exception('Unsupported model type')
 
-    # get dataloaders
-    with data_json.open('r') as f:
-        valid_files = json.loads(f.read())
-    f.close()
-    train_files = valid_files['train']
-    val_files = valid_files['val']
-    test_files = valid_files['test']
+    cnn_params = {
+        'input_size': 512,
+        'dropout': 0.1,
+        'channels': 9, 
+        'lr': 1e-4,
+        'weight_decay': 1e-4,
+        'epochs': 100,
+    }
 
     lstm_params = {
         'hidden_size': [32, 64],
@@ -84,37 +86,62 @@ def run(
     'seq_len': [512, 1024],
     'downsample_ratio': [1, 2] # What is this used for?
 }
+    # get dataloaders
+    with data_json.open('r') as f:
+        valid_files = json.loads(f.read())
+    f.close()
+    train_files = valid_files['train']
+    val_files = valid_files['val']
+    test_files = valid_files['test']
 
-    # lstm_params = {
-    #     'hidden_size': 32,
-    #     'dropout': 0.137579431603837,
-    #     'channels': [9],
-    #     'lr': 0.00239595953758425,
-    #     'weight_decay': 0.00016730652977231463,
-    #     'epochs': 38,
-    # }
-    if model == 'lstm':
-        train_dataset = SmartwatchDataset(train_files, sample_period)
-        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(), drop_last=True, shuffle=False)
+    if model == 'cnn':
+        collate_fn = SmartwatchAugmentCnn()
+        test_collate_fn = SmartwatchAugmentCnn(augment=False)
+    elif model == 'lstm' or model == 'cnn-lstm':
+        collate_fn = SmartwatchAugmentLstm()
+        test_collate_fn = SmartwatchAugmentLstm(augment=False)
+    elif model == 'transformer':
+        collate_fn = SmartwatchAugmentTransformer(
+            max_input_samples=transformer_params['seq_len'][0], 
+            downsample_output_seq=transformer_params['downsample_ratio'][0]
+        )
+        test_collate_fn = SmartwatchAugmentTransformer(
+            max_input_samples=transformer_params['seq_len'][0], 
+            downsample_output_seq=transformer_params['downsample_ratio'][0],
+            augment=False
+        )
+    elif model == 'cnn-transformer':
+        collate_fn = SmartwatchAugmentTransformer(
+            max_input_samples=transformer_params['seq_len'][1], 
+            downsample_output_seq=transformer_params['downsample_ratio'][1],
+        ),
+        test_collate_fn = SmartwatchAugmentTransformer(
+            max_input_samples=transformer_params['seq_len'][1], 
+            downsample_output_seq=transformer_params['downsample_ratio'][1],
+            augment=False
+        )
+    
+    train_dataset = SmartwatchDataset(train_files, sample_period)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=hp.BATCH_SIZE, collate_fn=collate_fn, drop_last=True, shuffle=False)
 
-        val_dataset = SmartwatchDataset(val_files, sample_period)
-        val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(), drop_last=True, shuffle=False)
+    val_dataset = SmartwatchDataset(val_files, sample_period)
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=hp.BATCH_SIZE, collate_fn=collate_fn, drop_last=True, shuffle=False)
 
-        test_dataset = SmartwatchDataset(test_files, sample_period)
-        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=hp.BATCH_SIZE, collate_fn=SmartwatchAugmentLstm(augment=False), drop_last=True, shuffle=False)
+    test_dataset = SmartwatchDataset(test_files, sample_period)
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=hp.BATCH_SIZE, collate_fn=test_collate_fn, drop_last=True, shuffle=False)
 
-        if model == 'cnn-lstm':
-            run_cnnlstm(
+    if model == 'cnn':
+        run_cnn(
             train_loader,
             val_loader,
-            downsample,
             SAVE_PATH,
             writer,
             enable_checkpoints,
-            lstm_params,
+            cnn_params,
         )
-        else:
-            run_lstm(
+
+    if model == 'lstm':
+        run_lstm(
                 train_loader,
                 val_loader,
                 downsample,
@@ -123,45 +150,19 @@ def run(
                 enable_checkpoints,
                 lstm_params,
             )
-        
+
+    elif model == 'cnn-lstm':
+        run_cnnlstm(
+            train_loader,
+            val_loader,
+            downsample,
+            SAVE_PATH,
+            writer,
+            enable_checkpoints,
+            lstm_params,
+        )
+              
     elif model == 'transformer':
-        train_dataset = SmartwatchDataset(train_files, sample_period)
-        train_loader = torch.utils.data.DataLoader(
-            train_dataset, 
-            batch_size=hp.TRANSFORMER_BATCH_SIZE, 
-            collate_fn=SmartwatchAugmentTransformer(
-                max_input_samples=transformer_params['seq_len'][0], 
-                downsample_output_seq=transformer_params['downsample_ratio'][0]
-            ), 
-            drop_last=True, 
-            shuffle=False
-        )
-
-        val_dataset = SmartwatchDataset(val_files, sample_period)
-        val_loader = torch.utils.data.DataLoader(
-            val_dataset, 
-            batch_size=hp.TRANSFORMER_BATCH_SIZE, 
-            collate_fn=SmartwatchAugmentTransformer(
-                max_input_samples=transformer_params['seq_len'][0], 
-                downsample_output_seq=transformer_params['downsample_ratio'][0]
-            ), 
-            drop_last=True, 
-            shuffle=False
-        )
-
-        test_dataset = SmartwatchDataset(test_files, sample_period)
-        test_loader = torch.utils.data.DataLoader(
-            test_dataset, 
-            batch_size=hp.TRANSFORMER_BATCH_SIZE, 
-            collate_fn=SmartwatchAugmentTransformer(
-                max_input_samples=transformer_params['seq_len'][0], 
-                downsample_output_seq=transformer_params['downsample_ratio'][0],
-                augment=False,
-            ), 
-            drop_last=True, 
-            shuffle=False
-        )
-
         run_transformer(
             train_loader,
             val_loader,
@@ -172,42 +173,6 @@ def run(
             transformer_params,
         )
     elif model == 'cnn-transformer':
-        train_dataset = SmartwatchDataset(train_files, sample_period)
-        train_loader = torch.utils.data.DataLoader(
-            train_dataset, 
-            batch_size=hp.TRANSFORMER_BATCH_SIZE, 
-            collate_fn=SmartwatchAugmentTransformer(
-                max_input_samples=transformer_params['seq_len'][1], 
-                downsample_output_seq=transformer_params['downsample_ratio'][1]
-            ), 
-            drop_last=True, 
-            shuffle=False
-        )
-
-        val_dataset = SmartwatchDataset(val_files, sample_period)
-        val_loader = torch.utils.data.DataLoader(
-            val_dataset, 
-            batch_size=hp.TRANSFORMER_BATCH_SIZE, 
-            collate_fn=SmartwatchAugmentTransformer(
-                max_input_samples=transformer_params['seq_len'][1], 
-                downsample_output_seq=transformer_params['downsample_ratio'][1]
-            ), 
-            drop_last=True, 
-            shuffle=False
-        )
-
-        test_dataset = SmartwatchDataset(test_files, sample_period)
-        test_loader = torch.utils.data.DataLoader(
-            test_dataset, 
-            batch_size=hp.TRANSFORMER_BATCH_SIZE, 
-            collate_fn=SmartwatchAugmentTransformer(
-                max_input_samples=transformer_params['seq_len'][1], 
-                downsample_output_seq=transformer_params['downsample_ratio'][1],
-                augment=False,
-            ), 
-            drop_last=True, 
-            shuffle=False
-        )
         run_cnntransformer(
             train_loader,
             val_loader,
