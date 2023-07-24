@@ -5,6 +5,131 @@ import random
 import os
 import model.hyperparameters as hp
 
+def CNN_train_fn(
+        train_loader,
+        val_loader,
+        model,
+        optimizer,
+        loss_fn,
+        metric_loss_fn,
+        num_epoch,
+        device,
+        save_path,
+        writer,
+        enable_checkpoint=False,
+        checkpoint=None,
+        val_interval=1,
+):
+    best_metric = 1e4
+    val_loss_values = []
+    val_metric_values = []
+
+    for epoch in range(num_epoch):
+        print(f'===== Epoch: {epoch} =====')
+        epoch_train_loss = 0
+        epoch_train_metric = 0
+        model.train()
+
+        for train_step, train_data in enumerate(train_loader):
+            train_source = train_data['inputs'].to(device)
+            train_target = train_data['targets'].to(device)
+
+            # Zero optimizers
+            optimizer.zero_grad()
+
+            # Forward pass
+            pred = model(train_source) # error in model
+
+            train_loss = loss_fn(pred, train_target)
+
+            if torch.isnan(train_loss):
+                print(f'Epoch: {epoch} \t Step: {train_step}')
+                raise ValueError('Train loss returns NAN value')
+
+            # Backwards
+            train_loss.backward()
+
+            # # gradient clipping
+            # nn.utils.clip_grad_norm_(encoder_model.parameters(), 5)
+            # nn.utils.clip_grad_norm_(decoder_model.parameters(), 5)
+
+            # Update optimizers
+            optimizer.step()
+
+            # Train loss
+            epoch_train_loss += train_loss.item()
+
+            # Train metric loss
+            train_metric = metric_loss_fn(pred, train_target)
+            epoch_train_metric += train_metric
+
+        # Average losses for tensorboard
+        epoch_train_loss /= (train_step+1)
+        writer.add_scalar('Training MSE per Epoch', epoch_train_loss, epoch)
+        epoch_train_metric /= (train_step+1)
+        writer.add_scalar('Training MAE per Epoch', epoch_train_metric, epoch)
+        
+
+        if (epoch+1) % val_interval == 0:
+            model.eval()
+            with torch.no_grad():
+                epoch_val_loss = 0
+                epoch_val_metric = 0
+
+                for val_step, val_data in enumerate(val_loader):
+                    val_source = val_data['inputs'].to(device)
+                    val_target = val_data['targets'].to(device)
+
+                    # Run validation model
+                    val_pred = model(val_source)
+
+                    val_loss = loss_fn(val_pred, val_target)
+
+                    if torch.isnan(val_loss):
+                        print(f'Epoch: {epoch} \t Step: {val_step}')
+                        # raise ValueError('Val loss returns NAN value')
+
+                    # Val loss
+                    epoch_val_loss += val_loss.item()
+
+                    # Val metric loss
+                    val_metric = metric_loss_fn(val_pred, val_target)
+                    epoch_val_metric += val_metric
+
+                # Average validation losses for tensorboard
+                epoch_val_loss /= (val_step+1)
+                writer.add_scalar('Validation MSE per Epoch', epoch_val_loss, epoch)
+                val_loss_values.append(epoch_val_loss)
+                epoch_val_metric /= (val_step+1)
+                writer.add_scalar('Validation MAE per Epoch', epoch_val_metric, epoch)
+                val_metric_values.append(epoch_val_metric)
+                
+                print(f"Epoch {epoch} MSE Loss: {epoch_val_loss}")
+                print(f"Epoch {epoch} MAE: {epoch_val_metric}")
+
+                # Save checkpoint
+                if enable_checkpoint:
+                    if not os.path.exists(os.path.join(save_path, 'checkpoint')):
+                        os.makedirs(os.path.join(save_path, 'checkpoint'))
+                    torch.save({'epoch': epoch,
+                                'model_state_dict': model.state_dict(),
+                                'optim_state_dict': optimizer.state_dict(),
+                                'train_loss': epoch_train_loss,
+                                'val_loss': epoch_val_loss},
+                            os.path.join(save_path, 'checkpoint', 'checkpoint_{}.pth'.format(epoch))
+                            )
+                    
+                    # Save best model
+                    if not os.path.exists(os.path.join(save_path, 'best')):
+                        os.makedirs(os.path.join(save_path, 'best'))
+                    if epoch_val_metric < best_metric:
+                        best_metric = epoch_val_metric
+                        best_metric_epoch = epoch
+                        torch.save(model.state_dict(), os.path.join(save_path, 'best', 'best_model.pth'))
+
+    writer.close()
+    return val_loss_values
+
 def LSTM_train_fn(
         train_loader,
         val_loader,
