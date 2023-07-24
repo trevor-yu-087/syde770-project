@@ -8,11 +8,42 @@ import torch.nn as nn
 import torch.optim as optim
 
 import model.hyperparameters as hp
+from model.ResNet18 import ResNet18_1D
 from model.seq2seq_LSTM import Decoder, Encoder
-from utils.train import LSTM_train_fn
 from model.Transformer import TransformerModel
-from utils.train import Transformer_train_fn
+from utils.train import CNN_train_fn, LSTM_train_fn, Transformer_train_fn
 
+
+def run_cnn (train_loader, val_loader, save_path, writer, enable_checkpoints, params = None):
+    # initialize 1D ResNet18
+    model = ResNet18_1D(num_classes=7).to(hp.DEVICE)
+
+    # Initialize loss functions
+    loss_fn = nn.MSELoss()
+    metric_loss_fn = nn.L1Loss()
+
+    # Initialize optimizers
+    optimizer = optim.Adam(
+        model.parameters(), 
+        lr=params['lr'], 
+        weight_decay=params['weight_decay']
+        )
+
+    # train
+    _ = CNN_train_fn(
+        train_loader,
+        val_loader,
+        model,
+        optimizer,
+        loss_fn,
+        metric_loss_fn,
+        params['epochs'],
+        hp.DEVICE,
+        save_path,
+        writer,
+        enable_checkpoints,
+        checkpoint=None,
+    )
 
 def run_lstm (train_loader, val_loader, downsample, save_path, writer, enable_checkpoints, params = None):
     # Initialize encoder and decoder
