@@ -14,6 +14,7 @@ from utils.train import LSTM_train_fn
 from utils.dataset import (
     SmartwatchDataset, 
     SmartwatchAugmentCnn,
+    SmartwatchAugmentCnnVel,
     SmartwatchAugmentLstm, 
     SmartwatchAugmentTransformer, 
 )
@@ -35,8 +36,9 @@ def run(
     data_json: Path,
     save_dir: Path,
     model: str, # cnn, lstm, cnn-lstm, transformer, or cnn-transformer
-    test_model: bool = False, # run test after training
     enable_checkpoints: bool = False,
+    test_model: bool = False, # run test after training
+    checkpoint_path: str = None, # path to model checkpoints    
 ):
 
     # create output save path
@@ -49,7 +51,7 @@ def run(
     TEST_PATH = SAVE_PATH
 
     # parameters for models
-    if model == 'lstm' or model =='transformer' or model == 'cnn':
+    if model == 'lstm' or model =='transformer' or model == 'cnn' or model == 'cnn-vel':
         sample_period = 0.04
         downsample = False
     elif model == 'cnn-lstm' or model == 'cnn-transformer':
@@ -97,6 +99,9 @@ def run(
     if model == 'cnn':
         collate_fn = SmartwatchAugmentCnn()
         test_collate_fn = SmartwatchAugmentCnn(augment=False)
+    if model == 'cnn-vel':
+        collate_fn = SmartwatchAugmentCnnVel()
+        test_collate_fn = SmartwatchAugmentCnnVel(augment=False)
     elif model == 'lstm' or model == 'cnn-lstm':
         collate_fn = SmartwatchAugmentLstm()
         test_collate_fn = SmartwatchAugmentLstm(augment=False)
@@ -131,6 +136,16 @@ def run(
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=hp.BATCH_SIZE, collate_fn=test_collate_fn, drop_last=True, shuffle=False)
 
     if model == 'cnn':
+        run_cnn(
+            train_loader,
+            val_loader,
+            SAVE_PATH,
+            writer,
+            enable_checkpoints,
+            cnn_params,
+        )
+
+    if model == 'cnn-vel':
         run_cnn(
             train_loader,
             val_loader,
