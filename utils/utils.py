@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 import model.hyperparameters as hp
-from model.ResNet18 import ResNet18_1D
+from model.ResNet18 import ResNet18_1D, ResNet_1D
 from model.seq2seq_LSTM import Decoder, Encoder
 from model.Transformer import TransformerModel
 from utils.train import CNN_train_fn, LSTM_train_fn, Transformer_train_fn
@@ -16,7 +16,7 @@ from utils.train import CNN_train_fn, LSTM_train_fn, Transformer_train_fn
 
 def run_cnn (train_loader, val_loader, save_path, writer, enable_checkpoints, params = None):
     # initialize 1D ResNet18
-    model = ResNet18_1D(num_classes=7).to(hp.DEVICE)
+    model = ResNet_1D(num_classes=7).to(hp.DEVICE)
 
     # Initialize loss functions
     loss_fn = nn.MSELoss()
@@ -274,17 +274,6 @@ def load_checkpoint(encoder_model, decoder_model, path):
     return encoder_model, decoder_model
 
 def load_checkpoint_Transformer(transformer_model, path):
-    """Load checkpoint into LSTM test model
-    Parameters:
-    -----------
-    encoder_model: initialized LSTM encoder model
-    decoder_model: initialized LSTM decoder model
-    path: path to trained weights
-    Returns:
-    --------
-    encoder_model: LSTM encoder model with loaded weights
-    decoder_model: LSTM decoder model with loaded weights
-    """
     transformer_model.load_state_dict(torch.load(
         os.path.join(path, 'best', 'best_transformer_model.pth'),
         map_location='cpu'
@@ -328,6 +317,83 @@ def plot(outputs, targets, step):
         axs[1].legend()
         # plt.suptitle(f'{title} Batch {i}')
         plt.show()
+
+def test_ronin(
+        test_loader,
+        checkpoint_path,
+):
+    from scipy.interpolate import interp1d
+    outputs = []
+    targets = []
+
+    # initialize 1D ResNet18
+    model = ResNet18_1D(num_classes=7).to(hp.DEVICE)
+    model.load_state_dict(torch.load(
+        os.path.join(checkpoint_path, 'best', 'best_model.pth'),
+        map_location='cpu'
+    ))
+
+    # Initialize loss functions
+    loss_fn = nn.MSELoss()
+    metric_loss_fn = nn.L1Loss()
+
+    model.eval()
+    with torch.no_grad():
+        final_test_loss = 0
+        final_test_metric = 0
+
+        for test_step, test_data in enumerate(test_loader):
+            test_source = test_data['inputs'].to(hp.DEVICE)
+            test_target = test_data['targets'].to(hp.DEVICE)
+            test_pos_targets = test_data['pos_targets']
+
+            # Run validation model
+            test_pred = model(test_source)
+
+            test_loss = loss_fn(test_pred, test_target)
+
+            # if test_step < 1:
+            #         plot(test_pred.numpy(), test_target.numpy(), test_step)
+            #         # outputs.append((test_decoder_output.numpy(force=True)))
+            #         # targets.append(test_target_unpacked.numpy(force=True))
+
+            # test loss
+            final_test_loss += test_loss.item()
+
+            # test metric loss
+            test_metric = metric_loss_fn(test_pred, test_target)
+            final_test_metric += test_metric
+
+            # pos = np.zeros((test_data['pos_targets'].shape))
+            # pos[:,:,:1] = test_data['pos_targets'][:,:,:1]
+            # pos[:,:,-1] =  np.cumsum(test_pred * 0.02, axis=0) + pos[:,:,0]
+            # for i in range(pos.shape[0]):
+            #     a = interp1d(513, pos[])
+
+
+            pos = np.zeros((16, 7, 3))
+            pos_full = np.zeros((test_pos_targets.shape))
+            pos[:,:,:2] = test_pos_targets[:,:,:2]
+            pos[:,:,-1] = np.cumsum(test_pred * 0.02, axis=0) + pos[:,:,0]
+            for i in range(pos.shape[0]):
+                f = interp1d((0, 0.02, test_pos_targets.shape[2]*0.02), pos[i])
+                pos_full[i] = f(np.linspace(0, test_pos_targets.shape[2]*0.02, test_pos_targets.shape[2]))
+                if i < 16:
+                    import matplotlib.pyplot as plt
+                    plt.plot(np.arange(test_pos_targets.shape[2]), pos_full[0][0], c='k')
+                    plt.plot(np.arange(test_pos_targets.shape[2]), test_pos_targets[0][0], c='r')
+                    plt.show()
+
+
+            # outputs.append(test_pred)
+            # targets.append(test_target)
+    
+    print(f'Test Loss: {final_test_loss/(test_step+1)}\nTest Metric: {final_test_metric/(test_step+1)}')
+
+    # np.save(f'outputs.npy', np.array(outputs, dtype=object), allow_pickle=True)
+    # np.save(f'targets.npy', np.array(targets, dtype=object), allow_pickle=True)
+
+
 
 def test_LSTM(
         test_loader,
