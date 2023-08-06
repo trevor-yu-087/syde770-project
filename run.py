@@ -14,7 +14,7 @@ from utils.train import LSTM_train_fn
 from utils.dataset import (
     SmartwatchDataset, 
     SmartwatchAugmentCnn,
-    SmartwatchAugmentCnnVel,
+    SmartwatchAugmentRonin,
     SmartwatchAugmentLstm, 
     SmartwatchAugmentTransformer, 
 )
@@ -23,35 +23,46 @@ from utils.utils import (
     run_lstm, 
     run_cnnlstm, 
     run_transformer, 
-    run_cnntransformer, 
+    run_cnntransformer,
+    test_ronin, 
     test_LSTM,
     test_transformer,
 )
 
 app = typer.Typer()
 
+cnn_params = {
+        'input_size': 64,
+        'dropout': 0.1,
+        'channels': 9, 
+        'lr': 1e-4,
+        'weight_decay': 1e-4,
+        'epochs': 100,
+    }
 
-@app.command()
-def run(
-    data_json: Path,
-    save_dir: Path,
-    model: str, # cnn, lstm, cnn-lstm, transformer, or cnn-transformer
-    enable_checkpoints: bool = False,
-    test_model: bool = False, # run test after training
-    checkpoint_path: str = None, # path to model checkpoints    
-):
+lstm_params = {
+    'hidden_size': [32, 64],
+    'dropout': [0.137579431603837, 0.1],
+    'channels': [9, 64],
+    'lr': [0.00239595953758425, 1e-3],
+    'weight_decay': [0.00016730652977231463, 0.000100786933714903564],
+    'epochs': [38, 35],
+}
 
-    # create output save path
-    SAVE_PATH = Path(f'{save_dir}/outputs/{model}/{datetime.now().strftime("%d-%m-%Y_%H%M%S")}')
-    print(f'CUDA available: {torch.cuda.is_available()}')
-    print(f'Running {model} \nSave path: {SAVE_PATH}')
+transformer_params = {
+'hidden_size': [32, 128],
+'dropout': [0.06315639803617487, 0.08700484164091785],
+'lr': [0.002953296290952476, 0.005599919411324668],
+'weight_decay': [0.0001295885340230645, 0.00016240741640480654],
+'epochs': [37, 30],
+'sample_period': [0.04, 0.02],
+'seq_len': [512, 1024],
+'downsample_ratio': [1, 2] # What is this used for?
+}
 
-    from torch.utils.tensorboard import SummaryWriter
-    writer = SummaryWriter(log_dir=f'{SAVE_PATH}/tensorboard')
-    TEST_PATH = SAVE_PATH
-
+def get_loaders(data_json, model):
     # parameters for models
-    if model == 'lstm' or model =='transformer' or model == 'cnn' or model == 'cnn-vel':
+    if model == 'lstm' or model =='transformer' or model == 'cnn' or model == 'ronin':
         sample_period = 0.04
         downsample = False
     elif model == 'cnn-lstm' or model == 'cnn-transformer':
@@ -60,34 +71,7 @@ def run(
     else:
         raise Exception('Unsupported model type')
 
-    cnn_params = {
-        'input_size': 512,
-        'dropout': 0.1,
-        'channels': 9, 
-        'lr': 1e-4,
-        'weight_decay': 1e-4,
-        'epochs': 100,
-    }
-
-    lstm_params = {
-        'hidden_size': [32, 64],
-        'dropout': [0.137579431603837, 0.1],
-        'channels': [9, 64],
-        'lr': [0.00239595953758425, 1e-3],
-        'weight_decay': [0.00016730652977231463, 0.000100786933714903564],
-        'epochs': [38, 35],
-    }
-
-    transformer_params = {
-    'hidden_size': [32, 128],
-    'dropout': [0.06315639803617487, 0.08700484164091785],
-    'lr': [0.002953296290952476, 0.005599919411324668],
-    'weight_decay': [0.0001295885340230645, 0.00016240741640480654],
-    'epochs': [37, 30],
-    'sample_period': [0.04, 0.02],
-    'seq_len': [512, 1024],
-    'downsample_ratio': [1, 2] # What is this used for?
-}
+    
     # get dataloaders
     with data_json.open('r') as f:
         valid_files = json.loads(f.read())
@@ -99,9 +83,9 @@ def run(
     if model == 'cnn':
         collate_fn = SmartwatchAugmentCnn()
         test_collate_fn = SmartwatchAugmentCnn(augment=False)
-    if model == 'cnn-vel':
-        collate_fn = SmartwatchAugmentCnnVel()
-        test_collate_fn = SmartwatchAugmentCnnVel(augment=False)
+    if model == 'ronin':
+        collate_fn = SmartwatchAugmentRonin(max_input_samples=cnn_params['input_size'])
+        test_collate_fn = SmartwatchAugmentRonin(max_input_samples=cnn_params['input_size'], augment=False)
     elif model == 'lstm' or model == 'cnn-lstm':
         collate_fn = SmartwatchAugmentLstm()
         test_collate_fn = SmartwatchAugmentLstm(augment=False)
@@ -135,6 +119,29 @@ def run(
     test_dataset = SmartwatchDataset(test_files, sample_period)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=hp.BATCH_SIZE, collate_fn=test_collate_fn, drop_last=True, shuffle=False)
 
+    return train_loader, val_loader, test_loader, downsample
+
+@app.command()
+def run(
+    data_json: Path,
+    save_dir: Path,
+    model: str, # ronin, cnn, lstm, cnn-lstm, transformer, or cnn-transformer
+    enable_checkpoints: bool = False, 
+):
+
+    # create output save path
+    SAVE_PATH = Path(f'{save_dir}/outputs/{model}/{datetime.now().strftime("%Y-%m-%d_%H%M%S")}')
+    print(f'CUDA available: {torch.cuda.is_available()}')
+    print(f'Running {model} \nSave path: {SAVE_PATH}')
+    print(f'Input size: {cnn_params["input_size"]}')
+
+
+    from torch.utils.tensorboard import SummaryWriter
+    writer = SummaryWriter(log_dir=f'{SAVE_PATH}/tensorboard')
+    TEST_PATH = SAVE_PATH
+
+    train_loader, val_loader, test_loader, downsample = get_loaders(data_json, model)
+
     if model == 'cnn':
         run_cnn(
             train_loader,
@@ -145,7 +152,7 @@ def run(
             cnn_params,
         )
 
-    if model == 'cnn-vel':
+    if model == 'ronin':
         run_cnn(
             train_loader,
             val_loader,
@@ -176,7 +183,7 @@ def run(
             enable_checkpoints,
             lstm_params,
         )
-              
+            
     elif model == 'transformer':
         run_transformer(
             train_loader,
@@ -196,7 +203,7 @@ def run(
             writer,
             enable_checkpoints,
             transformer_params,
-        )
+        )      
 
 @app.command()
 def tune(
@@ -207,5 +214,20 @@ def tune(
     enable_checkpoints: bool = False,
 ):
     print('test')
+
+@app.command()
+def test(
+    data_json: Path,
+    model: str, # ronin, cnn, lstm, cnn-lstm, transformer, or cnn-transformer
+    checkpoint_path: str = None, # path to model checkpoints   
+):
+    _, _, test_loader, _ = get_loaders(data_json, model)
+
+    if model == 'ronin':
+            test_ronin(
+                test_loader,
+                checkpoint_path,
+            )
+
 
 app()
