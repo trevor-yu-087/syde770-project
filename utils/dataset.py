@@ -151,7 +151,7 @@ class SmartwatchAugmentCnn:
         }
         return collated_data
     
-class SmartwatchAugmentCnnVel:
+class SmartwatchAugmentRonin:
     """
     Collate function to apply random augmentations to the data
         - Randomly perturb the mocap positions
@@ -219,16 +219,17 @@ class SmartwatchAugmentCnnVel:
         inputs = []
         targets = []
 
-        if self.augment:
-            for (imu, mocap) in data:
-                imu, mocap = self._random_crop(imu, mocap)
+        
+        for (imu, mocap) in data:
+            imu, mocap = self._random_crop(imu, mocap)
 
-                n_in, d_in = imu.shape
-                n_out, d_out = mocap.shape
-                assert np.ceil(n_in / self.downsample_output_seq) + 1 == n_out, f"Downsamping failed, n_in={n_in}; n_out={n_out}"
-                assert d_in == 9, f"IMU data has dimensionality {d_in} instead of 9"
-                assert d_out == 7, f"Mocap data has dimensionality {d_out} instead of 7"
+            n_in, d_in = imu.shape
+            n_out, d_out = mocap.shape
+            assert np.ceil(n_in / self.downsample_output_seq) + 1 == n_out, f"Downsamping failed, n_in={n_in}; n_out={n_out}"
+            assert d_in == 9, f"IMU data has dimensionality {d_in} instead of 9"
+            assert d_out == 7, f"Mocap data has dimensionality {d_out} instead of 7"
 
+            if self.augment:
                 # Augment XYZ positions
                 offset = rng.uniform(-self.position_noise, self.position_noise, size=(1, 3))
                 mocap[:, 0:3] += offset
@@ -243,10 +244,10 @@ class SmartwatchAugmentCnnVel:
                 noise = np.hstack([accel_noise, gyro_noise, mag_noise])
                 imu += noise
 
-                # Ensure targets are one timestep shifted wrt inputs
-                inputs.append(torch.FloatTensor(imu))
-                # targets.append(torch.FloatTensor(mocap[1:, :]))
-                targets.append(torch.FloatTensor(mocap))
+            # Ensure targets are one timestep shifted wrt inputs
+            inputs.append(torch.FloatTensor(imu))
+            # targets.append(torch.FloatTensor(mocap[1:, :]))
+            targets.append(torch.FloatTensor(mocap))
 
         lengths = [len(item) for item in inputs]
         inds = np.flip(np.argsort(lengths)).copy()  # PackedSequence expects lengths from longest to shortest
@@ -266,11 +267,12 @@ class SmartwatchAugmentCnnVel:
         # targets = targets[:, :, -1]
 
         batches, channels, elements = targets.shape
-        targets = (targets[:, :, -1] - targets[:, :, 0]) / (0.02*elements)
+        vel_targets = (targets[:,:,-1] - targets[:,:,0]) / (0.02*elements)
 
         collated_data = {
             "inputs": inputs,
-            "targets": targets
+            "targets": vel_targets,
+            "pos_targets": targets
         }
         return collated_data
 
