@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 import model.hyperparameters as hp
-from model.ResNet18 import ResNet18_1D, ResNet_1D
+from model.ResNet import ResNet18_1D, ResNet_1D
 from model.seq2seq_LSTM import Decoder, Encoder
 from model.Transformer import TransformerModel
 from utils.train import CNN_train_fn, LSTM_train_fn, Transformer_train_fn
