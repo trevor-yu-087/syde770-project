@@ -32,12 +32,12 @@ from utils.utils import (
 app = typer.Typer()
 
 cnn_params = {
-        'input_size': 64,
+        'input_size': 32,
         'dropout': 0.1,
         'channels': 9, 
         'lr': 1e-4,
         'weight_decay': 1e-4,
-        'epochs': 100,
+        'epochs': 1000,
     }
 
 lstm_params = {
@@ -102,8 +102,8 @@ def get_loaders(data_json, model):
     elif model == 'cnn-transformer':
         collate_fn = SmartwatchAugmentTransformer(
             max_input_samples=transformer_params['seq_len'][1], 
-            downsample_output_seq=transformer_params['downsample_ratio'][1],
-        ),
+            downsample_output_seq=transformer_params['downsample_ratio'][1]
+        )
         test_collate_fn = SmartwatchAugmentTransformer(
             max_input_samples=transformer_params['seq_len'][1], 
             downsample_output_seq=transformer_params['downsample_ratio'][1],
@@ -134,6 +134,7 @@ def run(
     print(f'CUDA available: {torch.cuda.is_available()}')
     print(f'Running {model} \nSave path: {SAVE_PATH}')
     print(f'Input size: {cnn_params["input_size"]}')
+    print(f'Learning rate: {cnn_params["lr"]}')
 
 
     from torch.utils.tensorboard import SummaryWriter
