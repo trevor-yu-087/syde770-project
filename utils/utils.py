@@ -16,7 +16,9 @@ from utils.train import CNN_train_fn, LSTM_train_fn, Transformer_train_fn
 
 def run_cnn (train_loader, val_loader, save_path, writer, enable_checkpoints, params = None):
     # initialize 1D ResNet18
-    model = ResNet_1D(num_classes=7).to(hp.DEVICE)
+    model = ResNet_1D(num_classes=3).to(hp.DEVICE)
+    pytorch_total_params = sum(p.numel() for p in model.parameters())
+    print(pytorch_total_params)
 
     # Initialize loss functions
     loss_fn = nn.MSELoss()
@@ -59,9 +61,9 @@ def run_lstm (train_loader, val_loader, downsample, save_path, writer, enable_ch
         downsample=downsample,
     ).to(hp.DEVICE)
     decoder_model = Decoder(
-        input_size=7,
+        input_size=3,
         hidden_size=params['hidden_size'][0],
-        output_size=7,
+        output_size=3,
         num_layers=1,
         dropout_p=params['dropout'][0],
     ).to(hp.DEVICE)
@@ -115,9 +117,9 @@ def run_cnnlstm (train_loader, val_loader, downsample, save_path, writer, enable
         downsample=downsample,
     ).to(hp.DEVICE)
     decoder_model = Decoder(
-        input_size=7,
+        input_size=3,
         hidden_size=params['hidden_size'][1],
-        output_size=7,
+        output_size=3,
         num_layers=1,
         dropout_p=params['dropout'][1],
     ).to(hp.DEVICE)
@@ -168,7 +170,7 @@ def run_transformer(train_loader, val_loader, downsample, save_path, writer, ena
         kernel_size=15,
         seq_len=params['seq_len'][0],
         downsample=downsample,
-        output_size=7,
+        output_size=3,
         num_encoder_layers=5,
         num_decoder_layers=5
     ).to(hp.DEVICE)
@@ -215,7 +217,7 @@ def run_cnntransformer(train_loader, val_loader, downsample, save_path, writer, 
         kernel_size=15,
         seq_len=params['seq_len'][1],
         downsample=downsample,
-        output_size=7,
+        output_size=3,
         num_encoder_layers=5,
         num_decoder_layers=5
     ).to(hp.DEVICE)

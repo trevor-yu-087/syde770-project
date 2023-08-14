@@ -168,7 +168,7 @@ def LSTM_train_fn(
             decoder_optimizer.zero_grad()
 
             # Forward pass
-            decoder_output = torch.zeros(hp.BATCH_SIZE, 512, 7).to(device)
+            decoder_output = torch.zeros(hp.BATCH_SIZE, 512, 3).to(device)
             train_target_unpacked, _ = torch.nn.utils.rnn.pad_packed_sequence(train_target, batch_first=True)
             train_target_unpacked.to(device)
             # start = train_target_unpacked[:, 0, :].unsqueeze(1).to(device)
@@ -331,7 +331,7 @@ def Transformer_train_fn(
             transformer_optimizer.zero_grad()
 
             # Forward pass
-            transformer_output = torch.zeros(batch_size, 512, 7).to(device)
+            transformer_output = torch.zeros(batch_size, 512, 3).to(device)
             train_target.to(device)
             #src_start = train_source[:, 0, :].unsqueeze(1).to(device)
             # start = train_target[:, 0, :].unsqueeze(1).to(device)
