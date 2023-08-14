@@ -28,8 +28,8 @@ class SmartwatchDataset(torch.utils.data.Dataset):
     def __getitem__(self, index):
         """Returns tuple of (imu, mocap) at index"""
         item = self.data[index]
-        imu = item[:, 0:9]  # IMU sensor data [accel, mag, gyro]
-        mocap = item[:, 9:]  # Mocap data [pos, quat]
+        imu = item[:, 7:]  # IMU sensor data [accel, mag, gyro]
+        mocap = item[:, 0:3]  # Mocap data [pos]
         return imu, mocap
 
 class SmartwatchAugmentCnn:
@@ -227,15 +227,15 @@ class SmartwatchAugmentRonin:
             n_out, d_out = mocap.shape
             assert np.ceil(n_in / self.downsample_output_seq) + 1 == n_out, f"Downsamping failed, n_in={n_in}; n_out={n_out}"
             assert d_in == 9, f"IMU data has dimensionality {d_in} instead of 9"
-            assert d_out == 7, f"Mocap data has dimensionality {d_out} instead of 7"
+            assert d_out == 3, f"Mocap data has dimensionality {d_out} instead of 73"
 
             if self.augment:
                 # Augment XYZ positions
                 offset = rng.uniform(-self.position_noise, self.position_noise, size=(1, 3))
                 mocap[:, 0:3] += offset
-                # Augment quaternion sign
-                sign = rng.choice([-1, 1])
-                mocap[:, 4:] *= sign
+                # # Augment quaternion sign
+                # sign = rng.choice([-1, 1])
+                # mocap[:, 4:] *= sign
 
                 accel_noise = rng.normal(loc=0, scale=self.accel_eps, size=(n_in, 3))
                 gyro_noise = rng.normal(loc=0, scale=self.gyro_eps, size=(n_in, 3))
@@ -343,22 +343,23 @@ class SmartwatchAugmentLstm:
         decoder_inputs = []
         targets = []
 
-        if self.augment:
-            for (imu, mocap) in data:
-                imu, mocap = self._random_crop(imu, mocap)
+        
+        for (imu, mocap) in data:
+            imu, mocap = self._random_crop(imu, mocap)
 
-                n_in, d_in = imu.shape
-                n_out, d_out = mocap.shape
-                assert np.ceil(n_in / self.downsample_output_seq) + 1 == n_out, f"Downsamping failed, n_in={n_in}; n_out={n_out}"
-                assert d_in == 9, f"IMU data has dimensionality {d_in} instead of 9"
-                assert d_out == 7, f"Mocap data has dimensionality {d_out} instead of 7"
+            n_in, d_in = imu.shape
+            n_out, d_out = mocap.shape
+            assert np.ceil(n_in / self.downsample_output_seq) + 1 == n_out, f"Downsamping failed, n_in={n_in}; n_out={n_out}"
+            assert d_in == 9, f"IMU data has dimensionality {d_in} instead of 9"
+            assert d_out == 3, f"Mocap data has dimensionality {d_out} instead of 3"
 
+            if self.augment:
                 # Augment XYZ positions
                 offset = rng.uniform(-self.position_noise, self.position_noise, size=(1, 3))
                 mocap[:, 0:3] += offset
-                # Augment quaternion sign
-                sign = rng.choice([-1, 1])
-                mocap[:, 4:] *= sign
+                # # Augment quaternion sign
+                # sign = rng.choice([-1, 1])
+                # mocap[:, 4:] *= sign
 
                 accel_noise = rng.normal(loc=0, scale=self.accel_eps, size=(n_in, 3))
                 gyro_noise = rng.normal(loc=0, scale=self.gyro_eps, size=(n_in, 3))
@@ -367,10 +368,10 @@ class SmartwatchAugmentLstm:
                 noise = np.hstack([accel_noise, gyro_noise, mag_noise])
                 imu += noise
 
-                # Ensure targets are one timestep shifted wrt inputs
-                encoder_inputs.append(torch.FloatTensor(imu))
-                decoder_inputs.append(torch.FloatTensor(mocap[:-1, :]))
-                targets.append(torch.FloatTensor(mocap[1:, :]))
+            # Ensure targets are one timestep shifted wrt inputs
+            encoder_inputs.append(torch.FloatTensor(imu))
+            decoder_inputs.append(torch.FloatTensor(mocap[:-1, :]))
+            targets.append(torch.FloatTensor(mocap[1:, :]))
 
         lengths = [len(item) for item in encoder_inputs]
         inds = np.flip(np.argsort(lengths)).copy()  # PackedSequence expects lengths from longest to shortest
@@ -478,16 +479,16 @@ class SmartwatchAugmentTransformer:
         decoder_inputs = []
         targets = []
 
-        if self.augment:
-            for (imu, mocap) in data:
-                imu, mocap = self._random_crop(imu, mocap)
+        for (imu, mocap) in data:
+            imu, mocap = self._random_crop(imu, mocap)
 
-                n_in, d_in = imu.shape
-                n_out, d_out = mocap.shape
-                assert np.ceil(n_in / self.downsample_output_seq) + 1 == n_out, f"Downsamping failed, n_in={n_in}; n_out={n_out}"
-                assert d_in == 9, f"IMU data has dimensionality {d_in} instead of 9"
-                assert d_out == 7, f"Mocap data has dimensionality {d_out} instead of 7"
+            n_in, d_in = imu.shape
+            n_out, d_out = mocap.shape
+            assert np.ceil(n_in / self.downsample_output_seq) + 1 == n_out, f"Downsamping failed, n_in={n_in}; n_out={n_out}"
+            assert d_in == 9, f"IMU data has dimensionality {d_in} instead of 9"
+            assert d_out == 3, f"Mocap data has dimensionality {d_out} instead of 3"
 
+            if self.augment:
                 # Augment XYZ positions
                 offset = rng.uniform(-self.position_noise, self.position_noise, size=(1, 3))
                 mocap[:, 0:3] += offset
@@ -502,10 +503,10 @@ class SmartwatchAugmentTransformer:
                 noise = np.hstack([accel_noise, gyro_noise, mag_noise])
                 imu += noise
 
-                # Ensure targets are one timestep shifted wrt inputs
-                encoder_inputs.append(torch.FloatTensor(imu))
-                decoder_inputs.append(torch.FloatTensor(mocap[:-1, :]))
-                targets.append(torch.FloatTensor(mocap[1:, :]))
+            # Ensure targets are one timestep shifted wrt inputs
+            encoder_inputs.append(torch.FloatTensor(imu))
+            decoder_inputs.append(torch.FloatTensor(mocap[:-1, :]))
+            targets.append(torch.FloatTensor(mocap[1:, :]))
 
         lengths = [len(item) for item in encoder_inputs]
         inds = np.flip(np.argsort(lengths)).copy()  # PackedSequence expects lengths from longest to shortest
