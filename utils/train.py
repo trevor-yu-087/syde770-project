@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import random
 import os
 import model.hyperparameters as hp
+from utils.visualize import pred_vs_error
 
 def CNN_train_fn(
         train_loader,
@@ -24,21 +25,32 @@ def CNN_train_fn(
     val_loss_values = []
     val_metric_values = []
 
+    train_std, train_mean = get_stats(train_loader)
+    val_std, val_mean = get_stats(val_loader)
+
     for epoch in range(num_epoch):
         print(f'===== Epoch: {epoch} =====')
         epoch_train_loss = 0
         epoch_train_metric = 0
         model.train()
+        preds, targets = [], []
 
         for train_step, train_data in enumerate(train_loader):
             train_source = train_data['inputs'].to(device)
-            train_target = train_data['targets'].to(device)
+            train_target = train_data['targets']
+            # zero-score normalize velocity targets
+            for i in range(3):
+                train_target[:,i] = (train_target[:,i] - train_mean[i]) / train_std[i]
+                # train_target[:,i] /= train_std[i]
+            train_target = train_target.to(device)
 
             # Zero optimizers
             optimizer.zero_grad()
 
             # Forward pass
             pred = model(train_source) # error in model
+            preds.append(pred.cpu().detach().numpy())
+            targets.append(train_target.cpu().detach().numpy())
 
             train_loss = loss_fn(pred, train_target)
 
@@ -69,6 +81,9 @@ def CNN_train_fn(
         epoch_train_metric /= (train_step+1)
         writer.add_scalar('Training MAE per Epoch', epoch_train_metric, epoch)
         
+        # if epoch == 15 or epoch == 40:
+        #     pred_vs_error(epoch, preds, targets)
+        
 
         if (epoch+1) % val_interval == 0:
             model.eval()
@@ -78,7 +93,11 @@ def CNN_train_fn(
 
                 for val_step, val_data in enumerate(val_loader):
                     val_source = val_data['inputs'].to(device)
-                    val_target = val_data['targets'].to(device)
+                    val_target = val_data['targets']
+                    # zero-score normalize velocity targets
+                    for i in range(3):
+                        val_target[:,i] = (val_target[:,i] - val_mean[i]) / val_std[i]
+                    val_target = val_target.to(device)
 
                     # Run validation model
                     val_pred = model(val_source)
@@ -168,7 +187,7 @@ def LSTM_train_fn(
             decoder_optimizer.zero_grad()
 
             # Forward pass
-            decoder_output = torch.zeros(hp.BATCH_SIZE, 512, 3).to(device)
+            decoder_output = torch.zeros(hp.BATCH_SIZE, 512, 7).to(device)
             train_target_unpacked, _ = torch.nn.utils.rnn.pad_packed_sequence(train_target, batch_first=True)
             train_target_unpacked.to(device)
             # start = train_target_unpacked[:, 0, :].unsqueeze(1).to(device)
@@ -331,7 +350,7 @@ def Transformer_train_fn(
             transformer_optimizer.zero_grad()
 
             # Forward pass
-            transformer_output = torch.zeros(batch_size, 512, 3).to(device)
+            transformer_output = torch.zeros(batch_size, 512, 7).to(device)
             train_target.to(device)
             #src_start = train_source[:, 0, :].unsqueeze(1).to(device)
             # start = train_target[:, 0, :].unsqueeze(1).to(device)
@@ -441,3 +460,30 @@ def Transformer_train_fn(
 
     writer.close()
     return val_loss_values
+
+
+def get_stats(
+        loader
+):
+    import numpy as np
+    x, y, z = [], [], []
+    for step, data in enumerate(loader):
+        targets = data['targets']
+        x.append(targets[:, 0].numpy())
+        y.append(targets[:, 1].numpy())
+        z.append(targets[:, 2].numpy())
+                
+    x = np.concatenate(np.array(x), axis=0)
+    y = np.concatenate(np.array(y), axis=0)
+    z = np.concatenate(np.array(z), axis=0)
+    velocity_std = [
+        np.std(x),
+        np.std(y),
+        np.std(z)
+    ]
+    velocity_mean = [
+        np.mean(x),
+        np.mean(y),
+        np.mean(z)
+    ]
+    return velocity_std, velocity_mean
