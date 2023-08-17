@@ -61,9 +61,9 @@ def run_lstm (train_loader, val_loader, downsample, save_path, writer, enable_ch
         downsample=downsample,
     ).to(hp.DEVICE)
     decoder_model = Decoder(
-        input_size=3,
+        input_size=7,
         hidden_size=params['hidden_size'][0],
-        output_size=3,
+        output_size=7,
         num_layers=1,
         dropout_p=params['dropout'][0],
     ).to(hp.DEVICE)
@@ -117,9 +117,9 @@ def run_cnnlstm (train_loader, val_loader, downsample, save_path, writer, enable
         downsample=downsample,
     ).to(hp.DEVICE)
     decoder_model = Decoder(
-        input_size=3,
+        input_size=7,
         hidden_size=params['hidden_size'][1],
-        output_size=3,
+        output_size=7,
         num_layers=1,
         dropout_p=params['dropout'][1],
     ).to(hp.DEVICE)
@@ -170,7 +170,7 @@ def run_transformer(train_loader, val_loader, downsample, save_path, writer, ena
         kernel_size=15,
         seq_len=params['seq_len'][0],
         downsample=downsample,
-        output_size=3,
+        output_size=7,
         num_encoder_layers=5,
         num_decoder_layers=5
     ).to(hp.DEVICE)
@@ -217,7 +217,7 @@ def run_cnntransformer(train_loader, val_loader, downsample, save_path, writer, 
         kernel_size=15,
         seq_len=params['seq_len'][1],
         downsample=downsample,
-        output_size=3,
+        output_size=7,
         num_encoder_layers=5,
         num_decoder_layers=5
     ).to(hp.DEVICE)

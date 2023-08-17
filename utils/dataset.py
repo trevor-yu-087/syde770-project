@@ -29,7 +29,7 @@ class SmartwatchDataset(torch.utils.data.Dataset):
         """Returns tuple of (imu, mocap) at index"""
         item = self.data[index]
         imu = item[:, 7:]  # IMU sensor data [accel, mag, gyro]
-        mocap = item[:, 0:3]  # Mocap data [pos]
+        mocap = item[:, 0:7]  # Mocap data [pos]
         return imu, mocap
 
 class SmartwatchAugmentCnn:
@@ -221,13 +221,13 @@ class SmartwatchAugmentRonin:
 
         
         for (imu, mocap) in data:
-            imu, mocap = self._random_crop(imu, mocap)
+            imu, mocap = self._random_crop(imu, mocap[:, 0:3])
 
             n_in, d_in = imu.shape
             n_out, d_out = mocap.shape
             assert np.ceil(n_in / self.downsample_output_seq) + 1 == n_out, f"Downsamping failed, n_in={n_in}; n_out={n_out}"
             assert d_in == 9, f"IMU data has dimensionality {d_in} instead of 9"
-            assert d_out == 3, f"Mocap data has dimensionality {d_out} instead of 73"
+            assert d_out == 3, f"Mocap data has dimensionality {d_out} instead of 3"
 
             if self.augment:
                 # Augment XYZ positions
@@ -351,15 +351,15 @@ class SmartwatchAugmentLstm:
             n_out, d_out = mocap.shape
             assert np.ceil(n_in / self.downsample_output_seq) + 1 == n_out, f"Downsamping failed, n_in={n_in}; n_out={n_out}"
             assert d_in == 9, f"IMU data has dimensionality {d_in} instead of 9"
-            assert d_out == 3, f"Mocap data has dimensionality {d_out} instead of 3"
+            assert d_out == 7, f"Mocap data has dimensionality {d_out} instead of 7"
 
             if self.augment:
                 # Augment XYZ positions
                 offset = rng.uniform(-self.position_noise, self.position_noise, size=(1, 3))
                 mocap[:, 0:3] += offset
-                # # Augment quaternion sign
-                # sign = rng.choice([-1, 1])
-                # mocap[:, 4:] *= sign
+                # Augment quaternion sign
+                sign = rng.choice([-1, 1])
+                mocap[:, 4:] *= sign
 
                 accel_noise = rng.normal(loc=0, scale=self.accel_eps, size=(n_in, 3))
                 gyro_noise = rng.normal(loc=0, scale=self.gyro_eps, size=(n_in, 3))
@@ -486,7 +486,7 @@ class SmartwatchAugmentTransformer:
             n_out, d_out = mocap.shape
             assert np.ceil(n_in / self.downsample_output_seq) + 1 == n_out, f"Downsamping failed, n_in={n_in}; n_out={n_out}"
             assert d_in == 9, f"IMU data has dimensionality {d_in} instead of 9"
-            assert d_out == 3, f"Mocap data has dimensionality {d_out} instead of 3"
+            assert d_out == 7, f"Mocap data has dimensionality {d_out} instead of 7"
 
             if self.augment:
                 # Augment XYZ positions
