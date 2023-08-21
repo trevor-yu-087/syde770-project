@@ -3,9 +3,9 @@ import matplotlib.pyplot as plt
 
 
 def pred_vs_error(
-        epoch: int,
         preds: list,
-        targets: list
+        targets: list,
+        epoch: None
 ):
     preds = np.vstack(np.array(preds))
     targets = np.vstack(np.array(targets))
