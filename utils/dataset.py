@@ -160,7 +160,7 @@ class SmartwatchAugmentRonin:
         - Random crop to the signal (if possible)
         - Generate a velocity over the window of sequence data
     """
-    def __init__(self, position_noise=0.2, accel_eps=0.1, gyro_eps=0.1, mag_eps=0.1, max_input_samples=512, downsample_output_seq=1, augment=True):
+    def __init__(self, position_noise=0.2, accel_eps=0.1, gyro_eps=0.1, mag_eps=0.1, max_input_samples=512, downsample_output_seq=1, augment=True, crop=True):
         """
         Parameters:
         -----------
@@ -179,6 +179,7 @@ class SmartwatchAugmentRonin:
         self.max_input_samples = max_input_samples
         self.downsample_output_seq = downsample_output_seq
         self.augment = augment
+        self.crop = crop
 
     def _random_crop(self, imu, mocap):
         """
@@ -194,7 +195,8 @@ class SmartwatchAugmentRonin:
         if max_offset > 0:
             offset = rng.choice(max_offset)
             input_inds = slice(offset, offset + self.max_input_samples)
-            output_inds = slice(offset, offset + max_len)
+            # output_inds = slice(offset, offset + max_len)
+            output_inds = slice(offset, offset + self.max_input_samples)
             imu, mocap = imu[input_inds, :], mocap[output_inds, :]
         else:
             cutoff = ds if n % ds == 0 else n % ds
@@ -221,50 +223,38 @@ class SmartwatchAugmentRonin:
 
         
         for (imu, mocap) in data:
-            imu, mocap = self._random_crop(imu, mocap[:, 0:3])
+            if self.crop:
+                imu, mocap = self._random_crop(imu, mocap[:, 0:3])
 
-            n_in, d_in = imu.shape
-            n_out, d_out = mocap.shape
-            assert np.ceil(n_in / self.downsample_output_seq) + 1 == n_out, f"Downsamping failed, n_in={n_in}; n_out={n_out}"
-            assert d_in == 9, f"IMU data has dimensionality {d_in} instead of 9"
-            assert d_out == 3, f"Mocap data has dimensionality {d_out} instead of 3"
+                n_in, d_in = imu.shape
+                n_out, d_out = mocap.shape
+                # assert np.ceil(n_in / self.downsample_output_seq) + 1 == n_out, f"Downsamping failed, n_in={n_in}; n_out={n_out}"
+                assert d_in == 9, f"IMU data has dimensionality {d_in} instead of 9"
+                assert d_out == 3, f"Mocap data has dimensionality {d_out} instead of 3"
 
-            if self.augment:
-                # Augment XYZ positions
-                offset = rng.uniform(-self.position_noise, self.position_noise, size=(1, 3))
-                mocap[:, 0:3] += offset
-                # # Augment quaternion sign
-                # sign = rng.choice([-1, 1])
-                # mocap[:, 4:] *= sign
+                if self.augment:
+                    # Augment XYZ positions
+                    offset = rng.uniform(-self.position_noise, self.position_noise, size=(1, 3))
+                    mocap[:, 0:3] += offset
+                    # # Augment quaternion sign
+                    # sign = rng.choice([-1, 1])
+                    # mocap[:, 4:] *= sign
 
-                accel_noise = rng.normal(loc=0, scale=self.accel_eps, size=(n_in, 3))
-                gyro_noise = rng.normal(loc=0, scale=self.gyro_eps, size=(n_in, 3))
-                mag_noise = rng.normal(loc=0, scale=self.mag_eps, size=(n_in, 3))
+                    accel_noise = rng.normal(loc=0, scale=self.accel_eps, size=(n_in, 3))
+                    gyro_noise = rng.normal(loc=0, scale=self.gyro_eps, size=(n_in, 3))
+                    mag_noise = rng.normal(loc=0, scale=self.mag_eps, size=(n_in, 3))
 
-                noise = np.hstack([accel_noise, gyro_noise, mag_noise])
-                imu += noise
+                    noise = np.hstack([accel_noise, gyro_noise, mag_noise])
+                    imu += noise
 
-            # Ensure targets are one timestep shifted wrt inputs
-            inputs.append(torch.FloatTensor(imu))
-            # targets.append(torch.FloatTensor(mocap[1:, :]))
-            targets.append(torch.FloatTensor(mocap))
+                inputs.append(torch.FloatTensor(imu))
+                targets.append(torch.FloatTensor(mocap))
 
-        lengths = [len(item) for item in inputs]
-        inds = np.flip(np.argsort(lengths)).copy()  # PackedSequence expects lengths from longest to shortest
-        lengths = torch.LongTensor(lengths)[inds]
-
-        # # Sort by lengths
-        # encoder_inputs = [encoder_inputs[i] for i in inds]
-        # decoder_inputs = [decoder_inputs[i] for i in inds]
-        # targets = [targets[i] for i in inds]
-
-        # encoder_inputs = torch.nn.utils.rnn.pack_sequence(encoder_inputs)
-        # decoder_inputs = torch.nn.utils.rnn.pack_sequence(decoder_inputs)
-        # targets = torch.nn.utils.rnn.pack_sequence(targets)
+            else:
+                pass
 
         inputs = torch.stack(inputs).permute(0, 2, 1)
         targets = torch.stack(targets).permute(0, 2, 1)
-        # targets = targets[:, :, -1]
 
         batches, channels, elements = targets.shape
         vel_targets = (targets[:,:,-1] - targets[:,:,0]) / (0.02*elements)
