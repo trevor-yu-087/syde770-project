@@ -3,6 +3,7 @@ from glob import glob
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -12,6 +13,9 @@ from model.ResNet import ResNet18_1D, ResNet_1D
 from model.seq2seq_LSTM import Decoder, Encoder
 from model.Transformer import TransformerModel
 from utils.train import CNN_train_fn, LSTM_train_fn, Transformer_train_fn
+from utils.visualize import pred_vs_error
+from utils.dataset import get_ronin_data
+from utils.metric import compute_ate_rte
 
 
 def run_cnn (train_loader, val_loader, save_path, writer, enable_checkpoints, params = None):
@@ -321,15 +325,11 @@ def plot(outputs, targets, step):
         plt.show()
 
 def test_ronin(
-        test_loader,
+        test_files,
         checkpoint_path,
 ):
-    from scipy.interpolate import interp1d
-    outputs = []
-    targets = []
-
-    # initialize 1D ResNet18
-    model = ResNet18_1D(num_classes=7).to(hp.DEVICE)
+    # initialize ResNet
+    model = ResNet_1D(num_classes=3).to(hp.DEVICE)
     model.load_state_dict(torch.load(
         os.path.join(checkpoint_path, 'best', 'best_model.pth'),
         map_location='cpu'
@@ -339,25 +339,51 @@ def test_ronin(
     loss_fn = nn.MSELoss()
     metric_loss_fn = nn.L1Loss()
 
+    # get velocity stats
+    x, y, z = [], [], []
+    for file in(test_files):
+        _, targets, _, _ = get_ronin_data(file)
+        x.append(targets[:, 0].numpy())
+        y.append(targets[:, 1].numpy())
+        z.append(targets[:, 2].numpy())
+
+    x = np.concatenate(x, axis=0)
+    y = np.concatenate(y, axis=0)
+    z = np.concatenate(z, axis=0)
+    velocity_std = [
+        np.std(x),
+        np.std(y),
+        np.std(z)
+    ]
+    velocity_mean = [
+        np.mean(x),
+        np.mean(y),
+        np.mean(z)
+    ]
+
     model.eval()
     with torch.no_grad():
         final_test_loss = 0
         final_test_metric = 0
+        final_ate = 0
+        final_rte = 0
 
-        for test_step, test_data in enumerate(test_loader):
-            test_source = test_data['inputs'].to(hp.DEVICE)
-            test_target = test_data['targets'].to(hp.DEVICE)
-            test_pos_targets = test_data['pos_targets']
+        preds, targets = [], []
+
+        for num_file, test_file in enumerate(test_files):
+            test_source, test_target, test_target_pos, smooth_pos = get_ronin_data(test_file)
+
+            # zero-score normalize velocity targets
+            for i in range(3):
+                test_target[:,i] = (test_target[:,i] - velocity_mean[i]) / velocity_std[i]
+
+            test_source = test_source.to(hp.DEVICE)
+            test_target = test_target.to(hp.DEVICE)
 
             # Run validation model
             test_pred = model(test_source)
-
+            
             test_loss = loss_fn(test_pred, test_target)
-
-            # if test_step < 1:
-            #         plot(test_pred.numpy(), test_target.numpy(), test_step)
-            #         # outputs.append((test_decoder_output.numpy(force=True)))
-            #         # targets.append(test_target_unpacked.numpy(force=True))
 
             # test loss
             final_test_loss += test_loss.item()
@@ -366,31 +392,57 @@ def test_ronin(
             test_metric = metric_loss_fn(test_pred, test_target)
             final_test_metric += test_metric
 
-            # pos = np.zeros((test_data['pos_targets'].shape))
-            # pos[:,:,:1] = test_data['pos_targets'][:,:,:1]
-            # pos[:,:,-1] =  np.cumsum(test_pred * 0.02, axis=0) + pos[:,:,0]
-            # for i in range(pos.shape[0]):
-            #     a = interp1d(513, pos[])
+            # calculate ate and rte
+            ate, rte = compute_ate_rte(
+                test_pred.cpu().detach().numpy(), 
+                test_target.cpu().detach().numpy(), 
+                pred_per_min=50*10
+            )
+            final_ate += ate
+            final_rte += rte
+            print(f'File: {num_file} \tATE: {ate} \tRTE: {rte}')
 
+            # undo zero-score normalization to velocity 
+            for i in range(3):
+                test_pred[:,i] = (test_pred[:,i] * velocity_std[i]) + velocity_mean[i]
+                test_target[:,i] = (test_target[:,i] * velocity_std[i]) + velocity_mean[i]
 
-            pos = np.zeros((16, 7, 3))
-            pos_full = np.zeros((test_pos_targets.shape))
-            pos[:,:,:2] = test_pos_targets[:,:,:2]
-            pos[:,:,-1] = np.cumsum(test_pred * 0.02, axis=0) + pos[:,:,0]
-            for i in range(pos.shape[0]):
-                f = interp1d((0, 0.02, test_pos_targets.shape[2]*0.02), pos[i])
-                pos_full[i] = f(np.linspace(0, test_pos_targets.shape[2]*0.02, test_pos_targets.shape[2]))
-                if i < 16:
-                    import matplotlib.pyplot as plt
-                    plt.plot(np.arange(test_pos_targets.shape[2]), pos_full[0][0], c='k')
-                    plt.plot(np.arange(test_pos_targets.shape[2]), test_pos_targets[0][0], c='r')
-                    plt.show()
+            # append un-normalized pred and targets for visualization
+            preds.append(test_pred.cpu().detach().numpy())
+            targets.append(test_target.cpu().detach().numpy())
 
+            # get starting position seed from ground truth for each batch
+            start_pos = np.zeros((test_target.shape))
+            start_pos[0,:] = test_target_pos[0,:,0]
 
-            # outputs.append(test_pred)
-            # targets.append(test_target)
+            # change in position from test predictions
+            ds = (test_pred * (0.02*32)).cpu().detach().numpy()
+            pos = start_pos + ds
+            pos = np.cumsum(pos, axis=0)
+
+            plot_paths = True
+            if plot_paths and (num_file == 4):
+                fig, axes = plt.subplots(3, 1, tight_layout=True)
+                fig.suptitle(test_file)
+                x = np.arange(31, (pos.shape[0]*32), 32) 
+                axes[0].set_title("X Positions")
+                axes[0].plot(x, pos[:,0])
+                axes[0].plot(smooth_pos[:,0])
+                axes[0].plot(start_pos[0,0], 'x')
+
+                axes[1].set_title("Y Positions")
+                axes[1].plot(x, pos[:,1])
+                axes[1].plot(smooth_pos[:,1])
+
+                axes[2].set_title("Z Positions")
+                axes[2].plot(x, pos[:,2])
+                axes[2].plot(smooth_pos[:,2])
+
+                plt.show()
     
-    print(f'Test Loss: {final_test_loss/(test_step+1)}\nTest Metric: {final_test_metric/(test_step+1)}')
+    print(f'Test Loss: {final_test_loss/(num_file+1)}\nTest Metric: {final_test_metric/(num_file+1)}')
+    print(f'ATE: {final_ate/(num_file+1)}\nRTE: {final_rte/(num_file+1)}')
+    pred_vs_error(preds, targets, 'RoNIN Test')
 
     # np.save(f'outputs.npy', np.array(outputs, dtype=object), allow_pickle=True)
     # np.save(f'targets.npy', np.array(targets, dtype=object), allow_pickle=True)

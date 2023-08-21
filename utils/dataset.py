@@ -579,3 +579,38 @@ def get_file_lists(
 
     train_files = [file for file in valid_files if str(file.resolve()) not in set(val_files + test_files)]
     return train_files, val_files, test_files
+
+def get_ronin_data(
+        file: str,
+        max_seq_len: int=512,
+        seq_len: int=32,
+):
+    df = pd.read_csv(file)
+    # Resample the data if needed
+    df.index = pd.to_timedelta(df["time"], unit="seconds")
+    df = df.drop("time", axis=1)
+    df = df.resample(f"0.04S").mean()
+    df = df.values
+
+    len, _ = df.shape
+    
+    # get sequence length to 513 max
+    cutoff = (len % (max_seq_len))
+    if cutoff != 0:
+        df = df[:-(cutoff), :] # make df divisible by seq_len and add 1 
+    else:
+        df = df[:-(seq_len),:] # make df divisible by seq_len and add 1
+    source = df[:, 7:] # imu data
+    targets = df[:, 0:3] # mocap data
+    smooth_pos = targets
+
+    # reshape source 
+    source = source.reshape((-1, 32, 9))
+    target_pos = targets.reshape((-1, 32, 3 ))
+    target = (target_pos[:,-1,:] - target_pos[:,0,:]) / (0.02*seq_len)
+
+    source = torch.FloatTensor(source).permute(0, 2, 1)
+    target_pos = torch.FloatTensor(target_pos).permute(0, 2, 1)
+    target = torch.FloatTensor(target)
+
+    return source, target, target_pos, smooth_pos
