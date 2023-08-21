@@ -35,9 +35,9 @@ cnn_params = {
         'input_size': 32,
         'dropout': 0.1,
         'channels': 9, 
-        'lr': 1e-4,
+        'lr': 1e-3,
         'weight_decay': 1e-4,
-        'epochs': 1000,
+        'epochs': 100,
     }
 
 lstm_params = {
@@ -133,8 +133,8 @@ def run(
     SAVE_PATH = Path(f'{save_dir}/outputs/{model}/{datetime.now().strftime("%Y-%m-%d_%H%M%S")}')
     print(f'CUDA available: {torch.cuda.is_available()}')
     print(f'Running {model} \nSave path: {SAVE_PATH}')
-    print(f'Input size: {cnn_params["input_size"]}')
-    print(f'Learning rate: {cnn_params["lr"]}')
+    print(f'RoNIN input size: {cnn_params["input_size"]}')
+    print(f'RoNIN learning rate: {cnn_params["lr"]}')
 
 
     from torch.utils.tensorboard import SummaryWriter
@@ -224,9 +224,14 @@ def test(
 ):
     _, _, test_loader, _ = get_loaders(data_json, model)
 
+    with data_json.open('r') as f:
+        valid_files = json.loads(f.read())
+    f.close()
+    test_files = valid_files['test']
+
     if model == 'ronin':
             test_ronin(
-                test_loader,
+                test_files,
                 checkpoint_path,
             )
 
