@@ -20,6 +20,7 @@ class SmartwatchDataset(torch.utils.data.Dataset):
             df.index = pd.to_timedelta(df["time"], unit="seconds")
             df = df.drop("time", axis=1)
             df = df.resample(f"{sample_period}S").mean()
+            df = df.interpolate()
             self.data.append(df.values)
 
     def __len__(self):
