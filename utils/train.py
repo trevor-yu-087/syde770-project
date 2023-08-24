@@ -346,38 +346,39 @@ def Transformer_train_fn(
         transformer_model.train()
 
         for train_step, train_data in enumerate(train_loader):
-            train_source = train_data['encoder_inputs'].to(device)
+            train_enc_source = train_data['encoder_inputs'].to(device)
             source_padding = train_data['encoder_padding_mask'].to(device)
-            train_target = train_data['decoder_inputs'].to(device)
+            train_dec_source = train_data['decoder_inputs'].to(device)
             target_padding = train_data['decoder_padding_mask'].to(device)
             target_lookahead = train_data['decoder_lookahead_mask'].to(device)
+            train_target = train_data['targets'].to(device)
 
             # Zero optimizers
             transformer_optimizer.zero_grad()
 
             # Forward pass
             transformer_output = torch.zeros(batch_size, 512, 7).to(device)
-            train_target.to(device)
+            train_dec_source.to(device)
             #src_start = train_source[:, 0, :].unsqueeze(1).to(device)
             # start = train_target[:, 0, :].unsqueeze(1).to(device)
             teacher_force = True if random.random() < teacher_force_ratio else False
 
 
             if train_step == 0:
-                transformer_output = transformer_model(src=train_source, tgt=train_target, src_padding=source_padding, 
+                transformer_output = transformer_model(src=train_enc_source, tgt=train_dec_source, src_padding=source_padding, 
                                                         tgt_padding=target_padding, tgt_lookahead=target_lookahead)
                 
 
                 # print(f'Decoder Output: {decoder_output.shape}\t Decoder Hidden: {decoder_hidden.shape}\t Decoder Cell: {decoder_cell.shape}')
             elif train_step !=0 and teacher_force == True:
-                transformer_output = transformer_model(src=train_source, tgt=train_target, src_padding=source_padding, 
+                transformer_output = transformer_model(src=train_enc_source, tgt=train_dec_source, src_padding=source_padding, 
                                                         tgt_padding=target_padding, tgt_lookahead=target_lookahead)
 
             elif train_step != 0 and teacher_force == False:
                 # for i in range(1, 512):
                 for i in range(0, 512):
-                    start = train_target[:, i, :].unsqueeze(1).to(device)
-                    transformer_output[:, i, :] = transformer_model(src=train_source, tgt=start)
+                    start = train_dec_source[:, i, :].unsqueeze(1).to(device)
+                    transformer_output[:, i, :] = transformer_model(src=train_enc_source, tgt=start)
                     # start = train_target[:, i, :].unsqueeze(1)
 
 
@@ -413,11 +414,12 @@ def Transformer_train_fn(
                 epoch_val_metric = 0
 
                 for val_step, val_data in enumerate(val_loader):
-                    val_source = val_data['encoder_inputs'].to(device)
-                    val_target = val_data['decoder_inputs'].to(device)
+                    val_enc_source = val_data['encoder_inputs'].to(device)
+                    val_dec_source = val_data['decoder_inputs'].to(device)
+                    val_target = val_data['targets'].to(device)
                     
                     # Run validation model
-                    val_transformer_output = transformer_model(src=val_source, tgt=val_target)
+                    val_transformer_output = transformer_model(src=val_enc_source, tgt=val_dec_source)
 
                     val_loss = loss_fn(val_transformer_output, val_target)
 
