@@ -258,7 +258,7 @@ def LSTM_train_fn(
                     val_dec_source = val_data['decoder_inputs'].to(device)
                     val_target = val_data['targets'].to(device)
                     # unpack val_target for loss functions
-                    val_target_unpacked, _ = torch.nn.utils.rnn.pad_packed_sequence(val_dec_source, batch_first=True)
+                    val_target_unpacked, _ = torch.nn.utils.rnn.pad_packed_sequence(val_target, batch_first=True)
                     val_target_unpacked.to(device)
 
                     # Run validation model
