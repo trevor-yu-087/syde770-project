@@ -3,17 +3,15 @@ import matplotlib.pyplot as plt
 
 
 def pred_vs_error(
-        preds: list,
-        targets: list,
-        epoch: None
+        preds, # (Element, Channel) array
+        targets, # (Element, Channel) array
+        title: None
 ):
-    preds = np.vstack(np.array(preds))
-    targets = np.vstack(np.array(targets))
     x = np.arange(preds.shape[0])
 
     fig, axes = plt.subplots(3, 1, figsize=(20,10), tight_layout=True)
 
-    fig.suptitle(f'Epoch {epoch}')
+    fig.suptitle(title)
 
     axes[0].set_title('X')
     axes[0].set_ylabel('Velocity')

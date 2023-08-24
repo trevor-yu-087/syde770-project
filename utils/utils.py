@@ -442,6 +442,8 @@ def test_ronin(
     
     print(f'Test Loss: {final_test_loss/(num_file+1)}\nTest Metric: {final_test_metric/(num_file+1)}')
     print(f'ATE: {final_ate/(num_file+1)}\nRTE: {final_rte/(num_file+1)}')
+    preds = np.vstack(np.array(preds))
+    targets = np.vstack(np.array(targets))
     pred_vs_error(preds, targets, 'RoNIN Test')
 
     # np.save(f'outputs.npy', np.array(outputs, dtype=object), allow_pickle=True)
