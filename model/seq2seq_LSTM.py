@@ -20,6 +20,7 @@ class Encoder(nn.Module):
             kernel_size: int,
             seq_len: int,
             downsample: bool,
+            bidirection: bool = False
     ):
         """
         Parameters:
@@ -33,6 +34,7 @@ class Encoder(nn.Module):
         kernel_size: downsample Conv1d kernel size
         seq_len: sequence length of data tensor
         downsample: bool to use CNN downsampling
+        bidirection: bool for bi-directionality
         """
         super(Encoder, self).__init__()
         self.downsample = downsample
@@ -44,7 +46,7 @@ class Encoder(nn.Module):
 
         if isinstance(channels, int):
             channels = [channels]
-        self.LSTM = nn.LSTM(channels[-1], hidden_size, num_layers, batch_first=True, dropout=dropout_p)
+        self.LSTM = nn.LSTM(channels[-1], hidden_size, num_layers, batch_first=True, dropout=dropout_p, bidirectional=bidirection)
 
     def forward(
             self,
@@ -68,6 +70,7 @@ class Decoder(nn.Module):
             output_size: int,
             num_layers: int,
             dropout_p: float,
+            bidirection: bool
     ):
         """
         Parameters:
@@ -77,12 +80,13 @@ class Decoder(nn.Module):
         output_size: output tensor channel size
         num_layers: number of LSTM layers
         dropout_p: LSTM dropout rate
+        bidirection: bool for bi-directionality
         """
         super(Decoder, self).__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
 
-        self.LSTM = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True,dropout=dropout_p)
+        self.LSTM = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=dropout_p, bidirectional=bidirection)
         self.fc = nn.Linear(hidden_size, output_size)
 
     def forward(
@@ -91,10 +95,11 @@ class Decoder(nn.Module):
             hidden, # shape (num_layers, hidden_size)
             cell, # shape (num_layers, hidden_size)
     ):
-        outputs, (hidden, cell) = self.LSTM(input, (hidden, cell))
-        outputs, _ = torch.nn.utils.rnn.pad_packed_sequence(outputs, batch_first=True)
+        output, (hidden, cell) = self.LSTM(input, (hidden, cell))
+        output, _ = torch.nn.utils.rnn.pad_packed_sequence(output, batch_first=True)
+        forward_output, backward_output = torch.split(output, split_size_or_sections=32, dim=2)
 
-        pred = self.fc(outputs)
+        pred = self.fc(forward_output)
         pred = pred.squeeze(1) 
         # print(pred.shape)
 
