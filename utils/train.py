@@ -200,20 +200,29 @@ def LSTM_train_fn(
             encoder_hidden, encoder_cell = encoder_model(train_enc_source)
             # print(encoder_hidden.shape)
             encoder_cell = torch.zeros(encoder_cell.shape).to(device)
-            
-            if train_step == 0:
-                decoder_output, decoder_hidden, decoder_cell = decoder_model(train_dec_source, encoder_hidden, encoder_cell)
-                # print(f'Decoder Output: {decoder_output.shape}\t Decoder Hidden: {decoder_hidden.shape}\t Decoder Cell: {decoder_cell.shape}')
-            elif train_step !=0 and teacher_force == True:
-                decoder_output, decoder_hidden, decoder_cell = decoder_model(train_dec_source, encoder_hidden, encoder_cell)
-            elif train_step != 0 and teacher_force == False:
-                for i in range(0, train_dec_source_unpacked.shape[1]): # cycle through all elements of sequence
-                    start = train_dec_source_unpacked[:, i, :].unsqueeze(1).to(device)
-                    start = [start[i] for i in range(start.shape[0])]
-                    start = torch.nn.utils.rnn.pack_sequence(start)
-                    decoder_output[:, i, :], decoder_hidden, decoder_cell = decoder_model(start, encoder_hidden, encoder_cell)
-                    encoder_hidden = decoder_hidden
-                    encoder_cell = decoder_cell
+            if epoch < 9:
+                 decoder_output, decoder_hidden, decoder_cell = decoder_model(train_dec_source, encoder_hidden, encoder_cell)
+            else:
+                if train_step == 0:
+                    decoder_output, decoder_hidden, decoder_cell = decoder_model(train_dec_source, encoder_hidden, encoder_cell)
+                    # print(f'Decoder Output: {decoder_output.shape}\t Decoder Hidden: {decoder_hidden.shape}\t Decoder Cell: {decoder_cell.shape}')
+                elif train_step !=0 and teacher_force == True:
+                    decoder_output, decoder_hidden, decoder_cell = decoder_model(train_dec_source, encoder_hidden, encoder_cell)
+                # autoregressive training
+                elif train_step != 0 and teacher_force == False: 
+                    start = train_dec_source_unpacked[:,0,:].unsqueeze(1).to(device)
+                    # start = [start[i,:,:] for i in range(start.shape[0])]
+                    # start = torch.nn.utils.rnn.pack_sequence(start)
+                    output, (hidden, cell) = decoder_model.LSTM(start, (encoder_hidden, encoder_cell))
+                    forward_output, backward_output = torch.split(output, split_size_or_sections=32, dim=2)
+                    output = decoder_model.fc(forward_output)
+                    decoder_output[:,0,:] = output.squeeze()
+
+                    for i in range(1, train_dec_source_unpacked.shape[1]): # cycle through all elements of sequence
+                        output, (hidden, cell) = decoder_model.LSTM(output,( hidden, cell))
+                        forward_output, backward_output = torch.split(output, split_size_or_sections=32, dim=2)
+                        output = decoder_model.fc(forward_output)
+                        decoder_output[:,i,:] = output.squeeze()
 
             train_loss = loss_fn(decoder_output, train_target_unpacked)
 
@@ -257,6 +266,9 @@ def LSTM_train_fn(
                     val_enc_source = val_data['encoder_inputs'].to(device)
                     val_dec_source = val_data['decoder_inputs'].to(device)
                     val_target = val_data['targets'].to(device)
+                    # unpack val_dec_source for auto-regressive generation
+                    val_dec_source_unpacked, _ = torch.nn.utils.rnn.pad_packed_sequence(val_dec_source, batch_first=True)
+                    val_dec_source_unpacked.to(device)
                     # unpack val_target for loss functions
                     val_target_unpacked, _ = torch.nn.utils.rnn.pad_packed_sequence(val_target, batch_first=True)
                     val_target_unpacked.to(device)
@@ -265,9 +277,21 @@ def LSTM_train_fn(
                     val_encoder_hidden, val_encoder_cell = encoder_model(val_enc_source)
                     val_encoder_cell = torch.zeros(val_encoder_cell.shape).to(device)
 
-                    val_decoder_output, val_decoder_hidden, val_decoder_cell = decoder_model(val_dec_source, val_encoder_hidden, val_encoder_cell)
+                    # auto-regressive decoder output generation
+                    val_dec_output = torch.zeros((val_target_unpacked.shape)).to(device)
+                    decoder_seed = val_dec_source_unpacked[:,0,:].unsqueeze(1)
+                    output, (hidden, cell) = decoder_model.LSTM(decoder_seed,(val_encoder_hidden, val_encoder_cell))
+                    forward_output, backward_output = torch.split(output, split_size_or_sections=32, dim=2)
+                    output = decoder_model.fc(forward_output)
+                    val_dec_output[:,0,:] = output.squeeze()
 
-                    val_loss = loss_fn(val_decoder_output, val_target_unpacked)
+                    for i in range(1, val_dec_source_unpacked.shape[1]):
+                        output, (hidden, cell) = decoder_model.LSTM(output, (hidden, cell))
+                        forward_output, backward_output = torch.split(output, split_size_or_sections=32, dim=2)
+                        output = decoder_model.fc(forward_output)
+                        val_dec_output[:,i,:] = output.squeeze()
+
+                    val_loss = loss_fn(val_dec_output, val_target_unpacked)
 
                     if torch.isnan(val_loss):
                         print(f'Epoch: {epoch} \t Step: {val_step}')
@@ -277,7 +301,7 @@ def LSTM_train_fn(
                     epoch_val_loss += val_loss.item()
 
                     # Val metric loss
-                    val_metric = metric_loss_fn(val_decoder_output, val_target_unpacked)
+                    val_metric = metric_loss_fn(val_dec_output, val_target_unpacked)
                     epoch_val_metric += val_metric
 
                 # Average validation losses for tensorboard
