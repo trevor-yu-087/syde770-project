@@ -199,7 +199,7 @@ def LSTM_train_fn(
 
             encoder_hidden, encoder_cell = encoder_model(train_enc_source)
             # print(encoder_hidden.shape)
-            encoder_cell = torch.zeros(encoder_cell.shape).to(device)
+            # encoder_cell = torch.zeros(encoder_cell.shape).to(device)
             if epoch < 9:
                  decoder_output, decoder_hidden, decoder_cell = decoder_model(train_dec_source, encoder_hidden, encoder_cell)
             else:
@@ -275,7 +275,7 @@ def LSTM_train_fn(
 
                     # Run validation model
                     val_encoder_hidden, val_encoder_cell = encoder_model(val_enc_source)
-                    val_encoder_cell = torch.zeros(val_encoder_cell.shape).to(device)
+                    # val_encoder_cell = torch.zeros(val_encoder_cell.shape).to(device)
 
                     # auto-regressive decoder output generation
                     val_dec_output = torch.zeros((val_target_unpacked.shape)).to(device)
