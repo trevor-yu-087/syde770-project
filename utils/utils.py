@@ -56,20 +56,22 @@ def run_lstm (train_loader, val_loader, downsample, save_path, writer, enable_ch
     encoder_model = Encoder(
         input_size=9,
         hidden_size=params['hidden_size'][0],
-        num_layers=1,
+        num_layers=2,
         dropout_p=params['dropout'][0],
         channels=params['channels'][0],
         stride=2,
         kernel_size=63,
         seq_len=1024,
         downsample=downsample,
+        bidirection=True
     ).to(hp.DEVICE)
     decoder_model = Decoder(
         input_size=7,
         hidden_size=params['hidden_size'][0],
         output_size=7,
-        num_layers=1,
+        num_layers=2,
         dropout_p=params['dropout'][0],
+        bidirection=True
     ).to(hp.DEVICE)
 
     # Initialize loss functions
@@ -112,20 +114,22 @@ def run_cnnlstm (train_loader, val_loader, downsample, save_path, writer, enable
     encoder_model = Encoder(
         input_size=9,
         hidden_size=params['hidden_size'][1],
-        num_layers=1,
+        num_layers=2,
         dropout_p=params['dropout'][1],
         channels=params['channels'][1],
         stride=2,
         kernel_size=63,
         seq_len=1024,
         downsample=downsample,
+        bidirection=True
     ).to(hp.DEVICE)
     decoder_model = Decoder(
         input_size=7,
         hidden_size=params['hidden_size'][1],
         output_size=7,
-        num_layers=1,
+        num_layers=2,
         dropout_p=params['dropout'][1],
+        bidirection=True
     ).to(hp.DEVICE)
 
     # Initialize loss functions
