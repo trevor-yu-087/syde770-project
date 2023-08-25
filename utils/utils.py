@@ -568,44 +568,62 @@ def test_LSTM(
 
 def test_transformer(
         test_loader,
-        transformer_model,
-        loss_fn,
-        metric_loss_fn,
+        params,
         path,
-        device,
+        downsample: bool = False,
     ):
-    outputs = []
+    preds = []
     targets = []
+    param = 0 if downsample == False else 1
 
+    # initialize transformer
+    transformer_model = TransformerModel(
+        input_size=9,
+        d_model=params['hidden_size'][0],
+        dropout=params['dropout'][0],
+        n_heads=int(params['hidden_size'][0]/4),
+        stride=2,
+        kernel_size=15,
+        seq_len=params['seq_len'][0],
+        downsample=downsample,
+        output_size=7,
+        num_encoder_layers=5,
+        num_decoder_layers=5
+    ).to(hp.DEVICE)
     transformer_model = load_checkpoint_Transformer(transformer_model, path)
     transformer_model.eval()
+
+    # initialize loss functions
+    loss_fn = nn.MSELoss()
+    metric_loss_fn = nn.L1Loss()
     
     with torch.no_grad():
         final_test_loss = 0
         final_test_metric = 0
+        final_ate = 0
+        final_rte = 0
 
         for test_step, test_data in enumerate(test_loader):
-            test_source = test_data['encoder_inputs'].to(device)
-            test_target = test_data['decoder_inputs'].to(device)
-            test_target.to(device)
+            test_enc_source = test_data['encoder_inputs'].to(hp.DEVICE)
+            test_dec_source = test_data['decoder_inputs'].to(hp.DEVICE)
+            test_target = test_data['targets'].to(hp.DEVICE)
 
             # Run test model
-            test_output = transformer_model(test_source, test_target)
-            #test_encoder_cell = torch.zeros(1, 4, 32).to(device)
+            start = test_dec_source[:,0,:].unsqueeze(1)
+            output = transformer_model(src=test_enc_source, tgt=start)
+            test_transformer_output = torch.cat([start, output.unsqueeze(1)], dim=1)
 
-            #test_decoder_output, test_decoder_hidden, test_decoder_cell = decoder_model(test_target, test_encoder_hidden, test_encoder_cell)
-            # outputs.append(test_output.numpy(force=True))
-            if test_step < 1:
-                plot(test_output.numpy(force=True), test_target.numpy(force=True), test_step)
-                outputs.append((test_output.numpy(force=True)))
-                targets.append(test_target.numpy(force=True))
-            test_loss = loss_fn(test_output, test_target)
+            for i in range(1, test_target.shape[1]):
+                output = transformer_model(src=test_enc_source, tgt=test_transformer_output)
+                test_transformer_output = torch.cat([test_transformer_output, output[:,-1,:0].unsqueeze(1)], dim=1)
+            test_transformer_output = test_transformer_output[:,1:,:]
 
             # test loss
+            test_loss = loss_fn(test_transformer_output, test_target)
             final_test_loss += test_loss.item()
 
             # test metric loss
-            test_metric = metric_loss_fn(test_output, test_target)
+            test_metric = metric_loss_fn(test_transformer_output, test_target)
             final_test_metric += test_metric
 
     print(f'Test Loss: {final_test_loss/(test_step+1)}\nTest Metric: {final_test_metric/(test_step+1)}')
