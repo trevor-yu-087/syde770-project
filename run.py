@@ -44,7 +44,7 @@ lstm_params = {
     'hidden_size': [32, 64],
     'dropout': [0.137579431603837, 0.1],
     'channels': [9, 64],
-    'lr': [0.00239595953758425, 1e-3],
+    'lr': [1e-3, 1e-3],
     'weight_decay': [0.00016730652977231463, 0.000100786933714903564],
     'epochs': [38, 35],
 }
@@ -234,6 +234,21 @@ def test(
                 test_files,
                 checkpoint_path,
             )
+    elif model == 'lstm':
+        test_LSTM(
+            test_loader,
+            lstm_params,
+            checkpoint_path
+        )
+    elif model == 'cnn-lstm':
+        test_LSTM(
+            test_loader,
+            lstm_params,
+            checkpoint_path,
+            downsample = True
+        )
+    else:
+        raise Exception('Unsupported model type')
 
 
 app()
