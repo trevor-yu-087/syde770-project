@@ -48,11 +48,13 @@ else:
     TEST_PATH = Path(input('Enter path to folder containing weights: '))
 
 def main():
+    print(f'CUDA available: {torch.cuda.is_available()}')
+
     # Get .csv files
     train_files, val_files, test_files = get_file_lists(
         val_sub_list=val_subjects,
         test_sub_list=[41],
-        valid_files_path=Path(r'E:\smartwatch\subjects')
+        valid_files_path=Path(r'E:\smartwatch\subjects_2023-06-27')
     )
 
     # Get dataloaders
