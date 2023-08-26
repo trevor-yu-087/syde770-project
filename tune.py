@@ -110,7 +110,7 @@ study = optuna.create_study(
     sampler=optuna.samplers.TPESampler(),
     study_name=MODEL
 )
-study.optimize(objective_lstm, n_trials=10)
+study.optimize(objective_lstm, n_trials=100)
 print("Number of finished trials: {}".format(len(study.trials)))
 
 best_trial = study.best_trial
