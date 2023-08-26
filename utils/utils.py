@@ -63,7 +63,7 @@ def run_lstm (train_loader, val_loader, downsample, save_path, writer, enable_ch
         kernel_size=63,
         seq_len=1024,
         downsample=downsample,
-        bidirection=True
+        bidirection=False
     ).to(hp.DEVICE)
     decoder_model = Decoder(
         input_size=7,
@@ -71,7 +71,7 @@ def run_lstm (train_loader, val_loader, downsample, save_path, writer, enable_ch
         output_size=7,
         num_layers=2,
         dropout_p=params['dropout'][0],
-        bidirection=True
+        bidirection=False
     ).to(hp.DEVICE)
 
     # Initialize loss functions
@@ -100,12 +100,14 @@ def run_lstm (train_loader, val_loader, downsample, save_path, writer, enable_ch
         decoder_optimizer,
         loss_fn,
         metric_loss_fn,
-        params['epochs'][0],
+        params['epochs'][1],
         hp.DEVICE,
         save_path,
         writer,
         hp.TEACHER_FORCE_RATIO,
-        enable_checkpoints,
+        teacher_force_decay=0.8,
+        min_teacher_force=4,
+        enable_checkpoint=enable_checkpoints,
         checkpoint=None,
     )
 
@@ -119,7 +121,7 @@ def run_cnnlstm (train_loader, val_loader, downsample, save_path, writer, enable
         channels=params['channels'][1],
         stride=2,
         kernel_size=63,
-        seq_len=1024,
+        seq_len=1024, # if downsample=True
         downsample=downsample,
         bidirection=True
     ).to(hp.DEVICE)
@@ -163,7 +165,9 @@ def run_cnnlstm (train_loader, val_loader, downsample, save_path, writer, enable
         save_path,
         writer,
         hp.TEACHER_FORCE_RATIO,
-        enable_checkpoints,
+        teacher_force_decay=0.8,
+        min_teacher_force=4,
+        enable_checkpoint=enable_checkpoints,
         checkpoint=None,
     )
 
@@ -627,5 +631,3 @@ def test_transformer(
             final_test_metric += test_metric
 
     print(f'Test Loss: {final_test_loss/(test_step+1)}\nTest Metric: {final_test_metric/(test_step+1)}')
-    np.save(f'{path}/outputs.npy', np.array(outputs, dtype=object), allow_pickle=True)
-    np.save(f'{path}/targets.npy', np.array(targets, dtype=object), allow_pickle=True)
