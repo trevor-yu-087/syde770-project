@@ -9,7 +9,7 @@ from utils.dataset import (
     SmartwatchAugmentLstm, 
     SmartwatchAugmentTransformer, 
 )
-def get_loaders(data_json, model, cnn_params, lstm_params, transformer_params):
+def get_loaders(data_json, model):
     # parameters for models
     if model == 'lstm' or model =='transformer' or model == 'cnn' or model == 'ronin':
         sample_period = 0.04
@@ -33,29 +33,29 @@ def get_loaders(data_json, model, cnn_params, lstm_params, transformer_params):
         collate_fn = SmartwatchAugmentCnn()
         test_collate_fn = SmartwatchAugmentCnn(augment=False)
     if model == 'ronin':
-        collate_fn = SmartwatchAugmentRonin(max_input_samples=cnn_params['input_size'])
-        test_collate_fn = SmartwatchAugmentRonin(max_input_samples=cnn_params['input_size'], augment=False)
+        collate_fn = SmartwatchAugmentRonin(max_input_samples=32)
+        test_collate_fn = SmartwatchAugmentRonin(max_input_samples=32, augment=False)
     elif model == 'lstm' or model == 'cnn-lstm':
         collate_fn = SmartwatchAugmentLstm()
         test_collate_fn = SmartwatchAugmentLstm(augment=False)
     elif model == 'transformer':
         collate_fn = SmartwatchAugmentTransformer(
-            max_input_samples=transformer_params['seq_len'][0], 
-            downsample_output_seq=transformer_params['downsample_ratio'][0]
+            max_input_samples=512, 
+            downsample_output_seq=1
         )
         test_collate_fn = SmartwatchAugmentTransformer(
-            max_input_samples=transformer_params['seq_len'][0], 
-            downsample_output_seq=transformer_params['downsample_ratio'][0],
+            max_input_samples=512, 
+            downsample_output_seq=1,
             augment=False
         )
     elif model == 'cnn-transformer':
         collate_fn = SmartwatchAugmentTransformer(
-            max_input_samples=transformer_params['seq_len'][1], 
-            downsample_output_seq=transformer_params['downsample_ratio'][1]
+            max_input_samples=512, 
+            downsample_output_seq=2
         )
         test_collate_fn = SmartwatchAugmentTransformer(
-            max_input_samples=transformer_params['seq_len'][1], 
-            downsample_output_seq=transformer_params['downsample_ratio'][1],
+            max_input_samples=512, 
+            downsample_output_seq=2,
             augment=False
         )
     
