@@ -163,6 +163,8 @@ def LSTM_train_fn(
         save_path,
         writer,
         teacher_force_ratio=1,
+        teacher_force_decay = 0,
+        min_teacher_force = 9,
         enable_checkpoint=False,
         checkpoint=None,
         val_interval=1,
@@ -200,9 +202,10 @@ def LSTM_train_fn(
             encoder_hidden, encoder_cell = encoder_model(train_enc_source)
             # print(encoder_hidden.shape)
             # encoder_cell = torch.zeros(encoder_cell.shape).to(device)
-            if epoch < 9:
+            if epoch < min_teacher_force:
                  decoder_output, decoder_hidden, decoder_cell = decoder_model(train_dec_source, encoder_hidden, encoder_cell)
             else:
+                teacher_force_ratio *= teacher_force_decay 
                 if train_step == 0:
                     decoder_output, decoder_hidden, decoder_cell = decoder_model(train_dec_source, encoder_hidden, encoder_cell)
                     # print(f'Decoder Output: {decoder_output.shape}\t Decoder Hidden: {decoder_hidden.shape}\t Decoder Cell: {decoder_cell.shape}')
@@ -214,14 +217,14 @@ def LSTM_train_fn(
                     # start = [start[i,:,:] for i in range(start.shape[0])]
                     # start = torch.nn.utils.rnn.pack_sequence(start)
                     output, (hidden, cell) = decoder_model.LSTM(start, (encoder_hidden, encoder_cell))
-                    forward_output, backward_output = torch.split(output, split_size_or_sections=32, dim=2)
-                    output = decoder_model.fc(forward_output)
+                    # forward_output, backward_output = torch.split(output, split_size_or_sections=32, dim=2)
+                    output = decoder_model.fc(output)
                     decoder_output[:,0,:] = output.squeeze()
 
                     for i in range(1, train_dec_source_unpacked.shape[1]): # cycle through all elements of sequence
                         output, (hidden, cell) = decoder_model.LSTM(output,( hidden, cell))
-                        forward_output, backward_output = torch.split(output, split_size_or_sections=32, dim=2)
-                        output = decoder_model.fc(forward_output)
+                        # forward_output, backward_output = torch.split(output, split_size_or_sections=32, dim=2)
+                        output = decoder_model.fc(output)
                         decoder_output[:,i,:] = output.squeeze()
 
             train_loss = loss_fn(decoder_output, train_target_unpacked)
@@ -281,14 +284,14 @@ def LSTM_train_fn(
                     val_dec_output = torch.zeros((val_target_unpacked.shape)).to(device)
                     decoder_seed = val_dec_source_unpacked[:,0,:].unsqueeze(1)
                     output, (hidden, cell) = decoder_model.LSTM(decoder_seed,(val_encoder_hidden, val_encoder_cell))
-                    forward_output, backward_output = torch.split(output, split_size_or_sections=32, dim=2)
-                    output = decoder_model.fc(forward_output)
+                    # forward_output, backward_output = torch.split(output, split_size_or_sections=32, dim=2)
+                    output = decoder_model.fc(output)
                     val_dec_output[:,0,:] = output.squeeze()
 
                     for i in range(1, val_dec_source_unpacked.shape[1]):
                         output, (hidden, cell) = decoder_model.LSTM(output, (hidden, cell))
-                        forward_output, backward_output = torch.split(output, split_size_or_sections=32, dim=2)
-                        output = decoder_model.fc(forward_output)
+                        # forward_output, backward_output = torch.split(output, split_size_or_sections=32, dim=2)
+                        output = decoder_model.fc(output)
                         val_dec_output[:,i,:] = output.squeeze()
 
                     val_loss = loss_fn(val_dec_output, val_target_unpacked)
