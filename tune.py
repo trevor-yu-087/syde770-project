@@ -14,10 +14,10 @@ from utils.get_loader import get_loaders
 
 DATA_JSON = Path('D:\\Jonathan\\3-Datasets\\syde770_processed_data\\subjects_2023-07-12\\data.json')
 SAVE_DIR = Path('D:\\Jonathan\\2-Projects\\syde770-project')
-MODEL = 'lstm'
+MODEL = 'transformer'
 
 print(f'CUDA available: {torch.cuda.is_available()}')
-print(f'Running {MODEL}')
+print(f'Tuning {MODEL}')
 
 
 train_loader, val_loader, test_loader, downsample = get_loaders(DATA_JSON, MODEL)
@@ -105,15 +105,90 @@ def tune_lstm(params, train_loader, val_loader, downsample):
     )
     return val_loss_values[-1]
 
-study = optuna.create_study(
-    direction='minimize',
-    sampler=optuna.samplers.TPESampler(),
-    study_name=MODEL
-)
-study.optimize(objective_lstm, n_trials=100)
-print("Number of finished trials: {}".format(len(study.trials)))
+def objective_transformer(trial):
+    params = {
+        'hidden_size': trial.suggest_categorical('hidden_size', [32, 64, 128]),
+        'num_layers': trial.suggest_int('num_layers', 1, 5),
+        'dropout_p': trial.suggest_float('dropout_p', 0.05, 0.15),
+        'kernel_size': trial.suggest_categorical('kernel_size', [7, 15, 31, 63]),
+        'learning_rate': trial.suggest_float('learning_rate', 1e-4, 1e-2, log=True),
+        'weight_decay': trial.suggest_float('weight_decay', 1e-4, 1e-2, log=True),
+        'num_epochs': trial.suggest_int('num_epoch', 25, 50),
+        # 'teacher_force_ratio': trial.suggest_categorical('teacher_force_ratio', [0.9, 0.8, 0.7]),
+        # 'teacher_force_decay': trial.suggest_float('teacher_force_decay', 0.6, 0.95, log=True),
+        # 'min_teacher_force': trial.suggest_int('min_teacher_force', 0, 9)
+    }
 
-best_trial = study.best_trial
-print(f"Best trial: {best_trial}")
-for key, value in best_trial.params.items():
-    print("{}: {}".format(key, value))
+    accuracy =  tune_transformer(params, train_loader, val_loader, downsample)
+    return accuracy
+
+def tune_transformer(params, train_loader, val_loader, downsample):
+    from torch.utils.tensorboard import SummaryWriter
+    save_path = Path(f'{SAVE_DIR}/outputs/tuning/{MODEL}/{datetime.now().strftime("%Y-%m-%d_%H%M%S")}')
+    writer = SummaryWriter(log_dir=f'{save_path}/tensorboard')
+
+    # Initialize transformer
+    transformer_model = TransformerModel(
+        input_size=9,
+        d_model=params['hidden_size'],
+        dropout=params['dropout_p'],
+        n_heads=int(params['hidden_size']/4),
+        stride=2,
+        kernel_size=params['kernel_size'],
+        seq_len=512,
+        downsample=downsample,
+        output_size=7,
+        num_encoder_layers=5,
+        num_decoder_layers=5
+    ).to(hp.DEVICE)
+
+    # Initialize loss functions
+    loss_fn = nn.MSELoss()
+    metric_loss_fn = nn.L1Loss()
+
+     # Initialize optimizers
+    transformer_optimizer = optim.Adam(
+        transformer_model.parameters(), 
+        lr=params['learning_rate'], 
+        weight_decay=params['weight_decay']
+    )
+
+    val_loss_values = Transformer_train_fn(
+        train_loader,
+        val_loader,
+        transformer_model,
+        transformer_optimizer,
+        loss_fn,
+        metric_loss_fn,
+        params['num_epochs'],
+        hp.DEVICE,
+        save_path,
+        writer,
+        hp.TRANSFORMER_TEACHER_FORCE_RATIO,
+        enable_checkpoint=True,
+        checkpoint=None,
+        batch_size=hp.BATCH_SIZE,
+    )
+    return val_loss_values[-1]
+    
+
+def main():
+    study = optuna.create_study(
+        direction='minimize',
+        sampler=optuna.samplers.TPESampler(),
+        study_name=MODEL
+    )
+
+    if MODEL == 'lstm':
+        study.optimize(objective_lstm, n_trials=100)
+    if MODEL == 'transformer':
+        study.optimize(objective_transformer, n_trials=100)
+    print("Number of finished trials: {}".format(len(study.trials)))
+
+    best_trial = study.best_trial
+    print(f"Best trial: {best_trial}")
+    for key, value in best_trial.params.items():
+        print("{}: {}".format(key, value))
+
+if __name__ == '__main__':
+    main()
