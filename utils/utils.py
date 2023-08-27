@@ -56,7 +56,7 @@ def run_lstm (train_loader, val_loader, downsample, save_path, writer, enable_ch
     encoder_model = Encoder(
         input_size=9,
         hidden_size=params['hidden_size'][0],
-        num_layers=2,
+        num_layers=1,
         dropout_p=params['dropout'][0],
         channels=params['channels'][0],
         stride=2,
@@ -69,7 +69,7 @@ def run_lstm (train_loader, val_loader, downsample, save_path, writer, enable_ch
         input_size=7,
         hidden_size=params['hidden_size'][0],
         output_size=7,
-        num_layers=2,
+        num_layers=1,
         dropout_p=params['dropout'][0],
         bidirection=False
     ).to(hp.DEVICE)
@@ -100,7 +100,7 @@ def run_lstm (train_loader, val_loader, downsample, save_path, writer, enable_ch
         decoder_optimizer,
         loss_fn,
         metric_loss_fn,
-        params['epochs'][1],
+        params['epochs'][0],
         hp.DEVICE,
         save_path,
         writer,
