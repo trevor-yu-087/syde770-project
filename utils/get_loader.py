@@ -19,6 +19,11 @@ def get_loaders(data_json, model):
         downsample = True
     else:
         raise Exception('Unsupported model type')
+    # 
+    if model == 'ronin':
+        max_samples = 32
+    else:
+        max_samples = 512
 
     
     # get dataloaders
@@ -36,25 +41,25 @@ def get_loaders(data_json, model):
         collate_fn = SmartwatchAugmentRonin(max_input_samples=32)
         test_collate_fn = SmartwatchAugmentRonin(max_input_samples=32, augment=False)
     elif model == 'lstm' or model == 'cnn-lstm':
-        collate_fn = SmartwatchAugmentLstm()
-        test_collate_fn = SmartwatchAugmentLstm(augment=False)
+        collate_fn = SmartwatchAugmentLstm(max_input_samples=max_samples)
+        test_collate_fn = SmartwatchAugmentLstm(max_input_samples=max_samples, augment=False)
     elif model == 'transformer':
         collate_fn = SmartwatchAugmentTransformer(
-            max_input_samples=512, 
+            max_input_samples=max_samples, 
             downsample_output_seq=1
         )
         test_collate_fn = SmartwatchAugmentTransformer(
-            max_input_samples=512, 
+            max_input_samples=max_samples, 
             downsample_output_seq=1,
             augment=False
         )
     elif model == 'cnn-transformer':
         collate_fn = SmartwatchAugmentTransformer(
-            max_input_samples=512, 
+            max_input_samples=max_samples, 
             downsample_output_seq=2
         )
         test_collate_fn = SmartwatchAugmentTransformer(
-            max_input_samples=512, 
+            max_input_samples=max_samples, 
             downsample_output_seq=2,
             augment=False
         )
