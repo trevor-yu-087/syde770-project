@@ -364,18 +364,22 @@ class SmartwatchAugmentLstm:
             decoder_inputs.append(torch.FloatTensor(mocap[:-1, :]))
             targets.append(torch.FloatTensor(mocap[1:, :]))
 
-        lengths = [len(item) for item in encoder_inputs]
-        inds = np.flip(np.argsort(lengths)).copy()  # PackedSequence expects lengths from longest to shortest
-        lengths = torch.LongTensor(lengths)[inds]
+        encoder_inputs = torch.stack(encoder_inputs, 0)
+        decoder_inputs = torch.stack(decoder_inputs, 0)
+        targets = torch.stack(targets, 0)
 
-        # Sort by lengths
-        encoder_inputs = [encoder_inputs[i] for i in inds]
-        decoder_inputs = [decoder_inputs[i] for i in inds]
-        targets = [targets[i] for i in inds]
+        # lengths = [len(item) for item in encoder_inputs]
+        # inds = np.flip(np.argsort(lengths)).copy()  # PackedSequence expects lengths from longest to shortest
+        # lengths = torch.LongTensor(lengths)[inds]
 
-        encoder_inputs = torch.nn.utils.rnn.pack_sequence(encoder_inputs)
-        decoder_inputs = torch.nn.utils.rnn.pack_sequence(decoder_inputs)
-        targets = torch.nn.utils.rnn.pack_sequence(targets)
+        # # Sort by lengths
+        # encoder_inputs = [encoder_inputs[i] for i in inds]
+        # decoder_inputs = [decoder_inputs[i] for i in inds]
+        # targets = [targets[i] for i in inds]
+
+        # encoder_inputs = torch.nn.utils.rnn.pack_sequence(encoder_inputs)
+        # decoder_inputs = torch.nn.utils.rnn.pack_sequence(decoder_inputs)
+        # targets = torch.nn.utils.rnn.pack_sequence(targets)
         collated_data = {
             "encoder_inputs": encoder_inputs,
             "decoder_inputs": decoder_inputs,

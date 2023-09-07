@@ -96,7 +96,7 @@ class Decoder(nn.Module):
             cell, # shape (num_layers, hidden_size)
     ):
         output, (hidden, cell) = self.LSTM(input, (hidden, cell))
-        output, _ = torch.nn.utils.rnn.pad_packed_sequence(output, batch_first=True)
+        # output, _ = torch.nn.utils.rnn.pad_packed_sequence(output, batch_first=True)
         # forward_output, backward_output = torch.split(output, split_size_or_sections=32, dim=2)
 
         pred = self.fc(output)
