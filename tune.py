@@ -14,7 +14,7 @@ from utils.get_loader import get_loaders
 
 DATA_JSON = Path('D:\\Jonathan\\3-Datasets\\syde770_processed_data\\subjects_2023-07-12\\data.json')
 SAVE_DIR = Path('D:\\Jonathan\\2-Projects\\syde770-project')
-MODEL = 'transformer'
+MODEL = 'lstm'
 
 print(f'CUDA available: {torch.cuda.is_available()}')
 print(f'Tuning {MODEL}')
@@ -29,11 +29,10 @@ def objective_lstm(trial):
         'dropout_p': trial.suggest_float('dropout_p', 0.05, 0.15),
         'kernel_size': trial.suggest_categorical('kernel_size', [7, 15, 31, 63]),
         'learning_rate': trial.suggest_float('learning_rate', 1e-4, 1e-2, log=True),
-        'weight_decay': trial.suggest_float('weight_decay', 1e-4, 1e-2, log=True),
+        'weight_decay': trial.suggest_float('weight_decay', 1e-6, 1e-4, log=True),
         'num_epochs': trial.suggest_int('num_epoch', 25, 50),
-        'teacher_force_ratio': trial.suggest_categorical('teacher_force_ratio', [0.9, 0.8, 0.7]),
-        'teacher_force_decay': trial.suggest_float('teacher_force_decay', 0.6, 0.95, log=True),
-        'min_teacher_force': trial.suggest_int('min_teacher_force', 0, 9)
+        'teacher_force_ratio': trial.suggest_float('teacher_force_ratio', 0.5, 1.0, step=0.1),
+        'dynamic_tf': trial.suggest_categorical('dynamic_tf', [True, False])
     }
 
     accuracy = tune_lstm(params, train_loader, val_loader, downsample)
@@ -98,8 +97,7 @@ def tune_lstm(params, train_loader, val_loader, downsample):
         save_path,
         writer,
         params['teacher_force_ratio'],
-        params['teacher_force_decay'],
-        params['min_teacher_force'],
+        params['dynamic_tf'],
         enable_checkpoint=True,
         checkpoint=None,
     )
