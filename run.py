@@ -27,7 +27,7 @@ cnn_params = {
         'input_size': 32,
         'dropout': 0.1,
         'channels': 9, 
-        'lr': 1e-3,
+        'lr': 1e-2,
         'weight_decay': 1e-4,
         'epochs': 100,
     }
@@ -57,6 +57,8 @@ def run(
     data_json: Path,
     save_dir: Path,
     model: str, # ronin, cnn, lstm, cnn-lstm, transformer, or cnn-transformer
+    teacher_force_ratio: float = 1.0, 
+    dynamic_tf: bool = True, 
     enable_checkpoints: bool = False, 
 ):
 
@@ -97,6 +99,8 @@ def run(
                 val_loader,
                 downsample,
                 SAVE_PATH,
+                teacher_force_ratio,
+                dynamic_tf,
                 writer,
                 enable_checkpoints,
                 lstm_params,
