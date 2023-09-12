@@ -5,6 +5,8 @@ import random
 import os
 import model.hyperparameters as hp
 from utils.visualize import pred_vs_error
+import matplotlib.pyplot as plt
+import numpy as np
 
 def CNN_train_fn(
         train_loader,
@@ -163,7 +165,9 @@ def LSTM_train_fn(
         save_path,
         writer,
         teacher_force_ratio,
-        dynanmic_tf,
+        dynamic_tf,
+        tf_decay=0.01,
+        min_tf_ratio=0.5,
         enable_checkpoint=False,
         checkpoint=None,
         val_interval=1,
@@ -171,6 +175,7 @@ def LSTM_train_fn(
     best_metric = 1e4
     val_loss_values = []
     val_metric_values = []
+    torch.autograd.set_detect_anomaly(True)
 
     for epoch in range(num_epoch):
         print(f'===== Epoch: {epoch} =====')
@@ -201,60 +206,36 @@ def LSTM_train_fn(
 
             # Forward pass
             decoder_output = torch.zeros((train_target.shape)).to(device)
+            decoder_input = torch.zeros((train_dec_source.shape)).to(device)
             # teacher_force = True if random.random() < teacher_force_ratio else False
-
+                         
             encoder_hidden, encoder_cell = encoder_model(train_enc_source)
 
             # initialize seed for decoder
-            decoder_input = train_dec_source[:,0,:].unsqueeze(1)
+            # decoder_input = train_dec_source[:,0,:].unsqueeze(1)
+            decoder_input[:,0,:] = train_dec_source[:,0,:]
 
             if random.random() < teacher_force_ratio: # teacher force targets
                 output, hidden, cell = decoder_model(decoder_input, encoder_hidden, encoder_cell)
-                decoder_output[:,0,:] = output
+                decoder_output[:,0,:] = output[:,0,:]
                 for i in range(1, train_target.shape[1]):
-                    decoder_input = train_dec_source[:,i,:].unsqueeze(1)
+                    decoder_input = torch.zeros((train_dec_source.shape)).to(device)
+                    decoder_input[:,0:i,:] = train_dec_source[:,0:i,:]
                     output, hidden, cell = decoder_model(decoder_input, encoder_hidden, encoder_cell)
-                    decoder_output[:,i,:] = output
+                    decoder_output[:,i,:] = output[:,i,:]
             else: # auto-regressive generation
                 output, hidden, cell = decoder_model(decoder_input, encoder_hidden, encoder_cell)
-                decoder_output[:,0,:] = output
+                decoder_output[:,0,:] = output[:,0,:]
                 for i in range (1, train_target.shape[1]):
-                    decoder_input = output.unsqueeze(1)
+                    decoder_input = torch.zeros((train_dec_source.shape)).to(device)
+                    decoder_input[:,i,:] = decoder_output[:,i-1,:]
                     output, hidden, cell = decoder_model(decoder_input, encoder_hidden, encoder_cell)
-                    decoder_output[:,i,:] = output.squeeze()
+                    decoder_output[:,i,:] = output[:,i,:]
 
-            if dynanmic_tf and teacher_force_ratio > 0.01:
-                teacher_force_ratio -= 0.01
-            else:
-                teacher_force_ratio = 0.0
-                
-
-
-            # # print(encoder_hidden.shape)
-            # # encoder_cell = torch.zeros(encoder_cell.shape).to(device)
-            # # if epoch < min_teacher_force:
-            # #      decoder_output, decoder_hidden, decoder_cell = decoder_model(train_dec_source, encoder_hidden, encoder_cell)
-            # # else:
-            # if train_step == 0:
-            #     decoder_output, decoder_hidden, decoder_cell = decoder_model(train_dec_source, encoder_hidden, encoder_cell)
-            #     # print(f'Decoder Output: {decoder_output.shape}\t Decoder Hidden: {decoder_hidden.shape}\t Decoder Cell: {decoder_cell.shape}')
-            # elif train_step !=0 and teacher_force == True:
-            #     decoder_output, decoder_hidden, decoder_cell = decoder_model(train_dec_source, encoder_hidden, encoder_cell)
-            # # autoregressive training
-            # elif train_step != 0 and teacher_force == False: 
-            #     start = train_dec_source_unpacked[:,0,:].unsqueeze(1).to(device)
-            #     # start = [start[i,:,:] for i in range(start.shape[0])]
-            #     # start = torch.nn.utils.rnn.pack_sequence(start)
-            #     output, (hidden, cell) = decoder_model.LSTM(start, (encoder_hidden, encoder_cell))
-            #     # forward_output, backward_output = torch.split(output, split_size_or_sections=32, dim=2)
-            #     output = decoder_model.fc(output)
-            #     decoder_output[:,0,:] = output.squeeze()
-
-            #     for i in range(1, train_dec_source_unpacked.shape[1]): # cycle through all elements of sequence
-            #         output, (hidden, cell) = decoder_model.LSTM(output,( hidden, cell))
-            #         # forward_output, backward_output = torch.split(output, split_size_or_sections=32, dim=2)
-            #         output = decoder_model.fc(output)
-            #         decoder_output[:,i,:] = output.squeeze()
+            if dynamic_tf and teacher_force_ratio > min_tf_ratio+tf_decay:
+                teacher_force_ratio -= tf_decay
+            elif dynamic_tf and teacher_force_ratio < min_tf_ratio+tf_decay:
+                teacher_force_ratio = min_tf_ratio
 
             train_loss = loss_fn(decoder_output, train_target)
 
@@ -303,7 +284,26 @@ def LSTM_train_fn(
                     # val_dec_source_unpacked.to(device)
                     # # unpack val_target for loss functions
                     # val_target_unpacked, _ = torch.nn.utils.rnn.pad_packed_sequence(val_target, batch_first=True)
-                    # val_target_unpacked.to(device)
+                    # val_target_unp acked.to(device)
+
+                    # fig, axes = plt.subplots(3,1)
+                    # fig.suptitle('Val_IMU Inputs (Batch 0)')
+                    # t = np.arange(val_target.shape[1])
+                    # for i in range(3):
+                    #     axes[0].plot(t, val_enc_source[0,:,i].detach().cpu().numpy())
+                    # axes[0].set_title(f'Accelerometer [x,y,z]')
+                    # for i in range(3, 6):
+                    #     axes[1].plot(t, val_enc_source[0,:,i].detach().cpu().numpy())
+                    # axes[1].set_title(f'Magnetometer [x,y,z]')
+                    # for i in range(6, 9):
+                    #     axes[2].plot(t, val_enc_source[0,:,i].detach().cpu().numpy())
+                    # axes[2].set_title(f'Gyroscope [x,y,z]')
+                    # writer.add_figure(
+                    #     'Val Inputs', 
+                    #     fig,
+                    #     val_step,
+                    #     True
+                    # )
 
                     # Run validation model
                     val_encoder_hidden, val_encoder_cell = encoder_model(val_enc_source)
@@ -311,15 +311,17 @@ def LSTM_train_fn(
 
                     # auto-regressive decoder output generation
                     val_dec_output = torch.zeros((val_target.shape)).to(device)
+                    val_dec_input = torch.zeros((val_dec_source.shape)).to(device)
 
-                    val_dec_input =  val_dec_source[:,0,:].unsqueeze(1)
+                    val_dec_input[:,0,:] =  val_dec_source[:,0,:]
                     output, hidden, cell = decoder_model(val_dec_input, val_encoder_hidden, val_encoder_cell)
-                    val_dec_output[:,0,:] = output
+                    val_dec_output[:,0,:] = output[:,0,:]
 
                     for i in range(1, val_target.shape[1]):
-                        val_dec_input = output.unsqueeze(1)
+                        val_dec_input = torch.zeros((val_dec_source.shape)).to(device)
+                        val_dec_input[:,i,:] = val_dec_output[:,i-1,:]
                         output, hidden, cell = decoder_model(val_dec_input, val_encoder_hidden, val_encoder_cell)
-                        val_dec_output[:,i,:] = output
+                        val_dec_output[:,i,:] = output[:,i,:]
 
                     # decoder_seed = val_dec_source[:,0,:].unsqueeze(1)
                     # output, (hidden, cell) = decoder_model.LSTM(decoder_seed,(val_encoder_hidden, val_encoder_cell))
