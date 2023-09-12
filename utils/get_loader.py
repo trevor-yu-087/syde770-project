@@ -23,7 +23,7 @@ def get_loaders(data_json, model):
     if model == 'ronin':
         max_samples = 32
     else:
-        max_samples = 512
+        max_samples = 32
 
     
     # get dataloaders

@@ -38,7 +38,7 @@ lstm_params = {
     'channels': [9, 64],
     'lr': [1e-3, 1e-3],
     'weight_decay': [0.00016730652977231463, 0.000100786933714903564],
-    'epochs': [38, 35],
+    'epochs': [50, 35],
 }
 
 transformer_params = {
@@ -57,8 +57,10 @@ def run(
     data_json: Path,
     save_dir: Path,
     model: str, # ronin, cnn, lstm, cnn-lstm, transformer, or cnn-transformer
-    teacher_force_ratio: float = 1.0, 
-    dynamic_tf: bool = True, 
+    teacher_force_ratio: float = 0.7, 
+    dynamic_tf: bool = False, 
+    min_tf_ratio: float = 0.5,
+    tf_decay: float = 0.01,
     enable_checkpoints: bool = False, 
 ):
 
@@ -101,6 +103,8 @@ def run(
                 SAVE_PATH,
                 teacher_force_ratio,
                 dynamic_tf,
+                tf_decay,
+                min_tf_ratio,
                 writer,
                 enable_checkpoints,
                 lstm_params,

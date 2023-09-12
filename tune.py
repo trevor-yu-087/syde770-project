@@ -30,9 +30,9 @@ def objective_lstm(trial):
         'kernel_size': trial.suggest_categorical('kernel_size', [7, 15, 31, 63]),
         'learning_rate': trial.suggest_float('learning_rate', 1e-4, 1e-2, log=True),
         'weight_decay': trial.suggest_float('weight_decay', 1e-6, 1e-4, log=True),
-        'num_epochs': trial.suggest_int('num_epoch', 25, 50),
-        'teacher_force_ratio': trial.suggest_float('teacher_force_ratio', 0.5, 1.0, step=0.1),
-        'dynamic_tf': trial.suggest_categorical('dynamic_tf', [True, False])
+        'num_epochs': trial.suggest_int('num_epoch', 40, 100, step=10),
+        'teacher_force_ratio': trial.suggest_float('teacher_force_ratio', 0.3, 1.0, step=0.1),
+        # 'dynamic_tf': trial.suggest_categorical('dynamic_tf', [True, False])
     }
 
     accuracy = tune_lstm(params, train_loader, val_loader, downsample)
@@ -97,7 +97,7 @@ def tune_lstm(params, train_loader, val_loader, downsample):
         save_path,
         writer,
         params['teacher_force_ratio'],
-        params['dynamic_tf'],
+        dynamic_tf=False,
         enable_checkpoint=True,
         checkpoint=None,
     )

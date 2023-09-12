@@ -51,7 +51,7 @@ def run_cnn (train_loader, val_loader, save_path, writer, enable_checkpoints, pa
         checkpoint=None,
     )
 
-def run_lstm (train_loader, val_loader, downsample, save_path, teacher_force_ratio, dynamic_tf, writer, enable_checkpoints, params = None):
+def run_lstm (train_loader, val_loader, downsample, save_path, teacher_force_ratio, dynamic_tf, tf_decay, min_tf_ratio, writer, enable_checkpoints, params = None):
     # Initialize encoder and decoder
     encoder_model = Encoder(
         input_size=9,
@@ -106,6 +106,8 @@ def run_lstm (train_loader, val_loader, downsample, save_path, teacher_force_rat
         writer,
         teacher_force_ratio,
         dynamic_tf,
+        tf_decay,
+        min_tf_ratio,
         enable_checkpoint=enable_checkpoints,
         checkpoint=None,
     )
