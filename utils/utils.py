@@ -56,7 +56,7 @@ def run_lstm (train_loader, val_loader, downsample, save_path, teacher_force_rat
     encoder_model = Encoder(
         input_size=9,
         hidden_size=params['hidden_size'][0],
-        num_layers=1,
+        num_layers=params['num_layers'][0],
         dropout_p=params['dropout'][0],
         channels=params['channels'][0],
         stride=2,
@@ -69,7 +69,7 @@ def run_lstm (train_loader, val_loader, downsample, save_path, teacher_force_rat
         input_size=7,
         hidden_size=params['hidden_size'][0],
         output_size=7,
-        num_layers=1,
+        num_layers=params['num_layers'][0],
         dropout_p=params['dropout'][0],
         bidirection=False
     ).to(hp.DEVICE)
@@ -478,20 +478,22 @@ def test_LSTM(
     encoder_model = Encoder(
         input_size=9,
         hidden_size=params['hidden_size'][param],
-        num_layers=1,
+        num_layers=params['num_layers'][param],
         dropout_p=params['dropout'][param],
         channels=params['channels'][param],
         stride=2,
-        kernel_size=63,
+        kernel_size=params['kernel_size'][param],
         seq_len=1024,
         downsample=downsample,
+        bidirection=False
     ).to(hp.DEVICE)
     decoder_model = Decoder(
         input_size=7,
         hidden_size=params['hidden_size'][param],
         output_size=7,
-        num_layers=1,
+        num_layers=params['num_layers'][param],
         dropout_p=params['dropout'][param],
+        bidirection=False
     ).to(hp.DEVICE)
     encoder_model, decoder_model = load_checkpoint(encoder_model, decoder_model, path)
     encoder_model.eval()
@@ -512,27 +514,22 @@ def test_LSTM(
             test_dec_source = test_data['decoder_inputs'].to(hp.DEVICE)
             test_target = test_data['targets'].to(hp.DEVICE) # Turn off crop?
 
-            test_target_unpacked, seq_len = torch.nn.utils.rnn.pad_packed_sequence(test_target, batch_first=True)
-            test_target_unpacked.to(hp.DEVICE)
-
-            test_dec_source_unpacked, seq_len = torch.nn.utils.rnn.pad_packed_sequence(test_dec_source, batch_first=True)
-            test_dec_source_unpacked.to(hp.DEVICE)
-
-            test_dec_output = torch.zeros((test_target_unpacked.shape)).to(hp.DEVICE) # ensure this is right
+            test_dec_input = torch.zeros((test_dec_source.shape)).to(hp.DEVICE)
+            test_dec_output = torch.zeros((test_target.shape)).to(hp.DEVICE) # ensure this is right
 
             # Run test model
-            test_encoder_hidden, test_encoder_cell = encoder_model(test_enc_source)
+            test_enc_hidden, test_enc_cell = encoder_model(test_enc_source)
 
             # auto-regressive decoder output generation
-            decoder_seed = test_dec_source_unpacked[:,0,:].unsqueeze(1)
-            output, (hidden, cell) = decoder_model.LSTM(decoder_seed, (test_encoder_hidden, test_encoder_cell))
-            output = decoder_model.fc(output)
-            test_dec_output[:, 0, :] = output.squeeze()
+            test_dec_input[:,0,:] = test_dec_source[:,0,:]
+            output, hidden, cell = decoder_model(test_dec_input, test_enc_hidden, test_enc_cell)
+            test_dec_output[:, 0, :] = output[:,0,:]
 
-            for i in range(1, seq_len[0]):
-                output, (hidden, cell) = decoder_model.LSTM(output, (hidden, cell))
-                output = decoder_model.fc(output)
-                test_dec_output[:, i, :] = output.squeeze()
+            for i in range(1, test_target.shape[1]):
+                test_dec_input = torch.zeros((test_dec_input.shape)).to(hp.DEVICE)
+                test_dec_input[:,i,:] = test_dec_output[:,i-1,:]
+                output, hidden, cell = decoder_model(output, test_enc_hidden, test_enc_cell)
+                test_dec_output[:,i,:] = output[:,i,:]
 
             # # test non-autoregressive decoder output
             # decoder_input = torch.zeros((test_dec_source_unpacked.shape)).to(hp.DEVICE)
@@ -542,20 +539,20 @@ def test_LSTM(
 
             # append for plots
             preds.append((test_dec_output.cpu().detach().numpy()).reshape((-1, 7)))
-            targets.append((test_target_unpacked.cpu().detach().numpy()).reshape((-1, 7)))
+            targets.append((test_target.cpu().detach().numpy()).reshape((-1, 7)))
         
             # test loss
-            test_loss = loss_fn(test_dec_output, test_target_unpacked)
+            test_loss = loss_fn(test_dec_output, test_target)
             final_test_loss += test_loss.item()
 
             # test metric loss
-            test_metric = metric_loss_fn(test_dec_output, test_target_unpacked)
+            test_metric = metric_loss_fn(test_dec_output, test_target)
             final_test_metric += test_metric
 
             # calculate ate and rte
             ate, rte = compute_ate_rte(
                 test_dec_output.cpu().detach().numpy(), 
-                test_target_unpacked.cpu().detach().numpy(), 
+                test_target.cpu().detach().numpy(), 
                 pred_per_min=50*10
             )
             final_ate += ate
