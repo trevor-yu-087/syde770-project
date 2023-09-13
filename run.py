@@ -33,12 +33,14 @@ cnn_params = {
     }
 
 lstm_params = {
-    'hidden_size': [32, 64],
-    'dropout': [0.137579431603837, 0.1],
+    'hidden_size': [128, 64],
+    'num_layers': [2, 1],
+    'kernel_size': [63, 31],
+    'dropout': [0.1055526565998549, 0.1],
     'channels': [9, 64],
-    'lr': [1e-3, 1e-3],
-    'weight_decay': [0.00016730652977231463, 0.000100786933714903564],
-    'epochs': [50, 35],
+    'lr': [0.001146595975274196, 1e-3],
+    'weight_decay': [6.889456501068434e-05, 0.000100786933714903564],
+    'epochs': [100, 35],
 }
 
 transformer_params = {
@@ -57,7 +59,7 @@ def run(
     data_json: Path,
     save_dir: Path,
     model: str, # ronin, cnn, lstm, cnn-lstm, transformer, or cnn-transformer
-    teacher_force_ratio: float = 0.7, 
+    teacher_force_ratio: float = 0.5, 
     dynamic_tf: bool = False, 
     min_tf_ratio: float = 0.5,
     tf_decay: float = 0.01,
