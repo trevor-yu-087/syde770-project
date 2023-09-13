@@ -228,7 +228,7 @@ def LSTM_train_fn(
                 decoder_output[:,0,:] = output[:,0,:]
                 for i in range (1, train_target.shape[1]):
                     decoder_input = torch.zeros((train_dec_source.shape)).to(device)
-                    decoder_input[:,i,:] = decoder_output[:,i-1,:]
+                    decoder_input[:,:i,:] = decoder_output[:,:i,:]
                     output, hidden, cell = decoder_model(decoder_input, encoder_hidden, encoder_cell)
                     decoder_output[:,i,:] = output[:,i,:]
 
@@ -319,7 +319,7 @@ def LSTM_train_fn(
 
                     for i in range(1, val_target.shape[1]):
                         val_dec_input = torch.zeros((val_dec_source.shape)).to(device)
-                        val_dec_input[:,i,:] = val_dec_output[:,i-1,:]
+                        val_dec_input[:,:i,:] = val_dec_output[:,:i,:]
                         output, hidden, cell = decoder_model(val_dec_input, val_encoder_hidden, val_encoder_cell)
                         val_dec_output[:,i,:] = output[:,i,:]
 
@@ -425,39 +425,60 @@ def Transformer_train_fn(
             transformer_optimizer.zero_grad()
 
             # Forward pass
-            # transformer_output = torch.zeros((train_target.shape)).to(device)
-            teacher_force = True if random.random() < teacher_force_ratio else False
+            train_dec_input = torch.zeros((train_dec_source.shape)).to(device)
+            transformer_output = torch.zeros((train_target.shape)).to(device)
 
-            if train_step == 0:
-                transformer_output = transformer_model(
-                    src=train_enc_source, 
-                    tgt=train_dec_source, 
-                    src_padding=source_padding, 
-                    tgt_padding=target_padding, 
-                    tgt_lookahead=target_lookahead
-                )
+            train_dec_input[:,0,:] = train_dec_source[:,0,:]
+
+            output = transformer_model(
+                src=train_enc_source, 
+                tgt=train_dec_input, 
+                src_padding=source_padding, 
+                tgt_padding=target_padding, 
+                tgt_lookahead=target_lookahead
+            )
+
+            transformer_output[:,0,:] = output[:,0,:]
+
+            if random.random() < teacher_force_ratio: # teacher force targets
+                for i in range(1, train_target.shape[1]):
+                    train_dec_input = torch.zeros((train_dec_source.shape)).to(device)
+                    train_dec_input[:,0:i,0] = train_dec_source[:,0:i,:]
+                    output = transformer_model(
+                        src=train_enc_source, 
+                        tgt=train_dec_input, 
+                        src_padding=source_padding, 
+                        tgt_padding=target_padding, 
+                        tgt_lookahead=target_lookahead
+                    )
+                    transformer_output[:,i,:] - output[:,i,:]
+
+            else: # auto-regressive generation
+                for i in range(1, train_target.shape[1]):
+                    train_dec_input = torch.zeros((train_dec_source.shape)).to(device)
+
                 
-            elif train_step !=0 and teacher_force == True:
-                transformer_output = transformer_model(
-                    src=train_enc_source, 
-                    tgt=train_dec_source, 
-                    src_padding=source_padding, 
-                    tgt_padding=target_padding, 
-                    tgt_lookahead=target_lookahead
-                )
-            # autoregressive training
-            elif train_step != 0 and teacher_force == False:
-                start = train_dec_source[:,0,:].unsqueeze(1)
-                output = transformer_model(
-                    src=train_enc_source, 
-                    tgt=start, 
-                )
-                transformer_output = torch.cat([start, output.unsqueeze(1)], dim=1)
+            # elif train_step !=0 and teacher_force == True:
+            #     transformer_output = transformer_model(
+            #         src=train_enc_source, 
+            #         tgt=train_dec_source, 
+            #         src_padding=source_padding, 
+            #         tgt_padding=target_padding, 
+            #         tgt_lookahead=target_lookahead
+            #     )
+            # # autoregressive training
+            # elif train_step != 0 and teacher_force == False:
+            #     start = train_dec_source[:,0,:].unsqueeze(1)
+            #     output = transformer_model(
+            #         src=train_enc_source, 
+            #         tgt=start, 
+            #     )
+            #     transformer_output = torch.cat([start, output.unsqueeze(1)], dim=1)
 
-                for i in range(1, train_dec_source.shape[1]):
-                    output = transformer_model(src=train_enc_source, tgt=transformer_output)
-                    transformer_output = torch.cat([transformer_output, output[:,-1,:].unsqueeze(1)], dim=1)
-                transformer_output = transformer_output[:,1:,:]
+            #     for i in range(1, train_dec_source.shape[1]):
+            #         output = transformer_model(src=train_enc_source, tgt=transformer_output)
+            #         transformer_output = torch.cat([transformer_output, output[:,-1,:].unsqueeze(1)], dim=1)
+            #     transformer_output = transformer_output[:,1:,:]
 
             train_loss = loss_fn(transformer_output, train_target)
 
