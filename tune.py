@@ -13,8 +13,9 @@ from utils.train import CNN_train_fn, LSTM_train_fn, Transformer_train_fn
 from utils.get_loader import get_loaders
 
 DATA_JSON = Path('D:\\Jonathan\\3-Datasets\\syde770_processed_data\\subjects_2023-07-12\\data.json')
-SAVE_DIR = Path('D:\\Jonathan\\2-Projects\\syde770-project')
+DIR = Path('D:\\Jonathan\\2-Projects\\syde770-project')
 MODEL = 'lstm'
+SAVE_DIR = Path(f'{DIR}/outputs/tuning/{MODEL}/{datetime.now().strftime("%Y-%m-%d_%H%M%S")}')
 
 print(f'CUDA available: {torch.cuda.is_available()}')
 print(f'Tuning {MODEL}')
@@ -30,17 +31,17 @@ def objective_lstm(trial):
         'kernel_size': trial.suggest_categorical('kernel_size', [7, 15, 31, 63]),
         'learning_rate': trial.suggest_float('learning_rate', 1e-4, 1e-2, log=True),
         'weight_decay': trial.suggest_float('weight_decay', 1e-6, 1e-4, log=True),
-        'num_epochs': trial.suggest_int('num_epoch', 40, 100, step=10),
+        'num_epochs': trial.suggest_int('num_epoch', 50, 150, step=10),
         'teacher_force_ratio': trial.suggest_float('teacher_force_ratio', 0.3, 1.0, step=0.1),
         # 'dynamic_tf': trial.suggest_categorical('dynamic_tf', [True, False])
     }
 
-    accuracy = tune_lstm(params, train_loader, val_loader, downsample)
+    accuracy = tune_lstm(trial, params, train_loader, val_loader, downsample)
     return accuracy
 
-def tune_lstm(params, train_loader, val_loader, downsample):
+def tune_lstm(trial, params, train_loader, val_loader, downsample):
     from torch.utils.tensorboard import SummaryWriter
-    save_path = Path(f'{SAVE_DIR}/outputs/tuning/{MODEL}/{datetime.now().strftime("%Y-%m-%d_%H%M%S")}')
+    save_path = Path(f'{SAVE_DIR}/trial_{trial.number}')
     writer = SummaryWriter(log_dir=f'{save_path}/tensorboard')
 
      # Initialize encoder and decoder
