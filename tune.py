@@ -99,7 +99,7 @@ def tune_lstm(trial, params, train_loader, val_loader, downsample):
         writer,
         params['teacher_force_ratio'],
         dynamic_tf=False,
-        enable_checkpoint=True,
+        enable_checkpoints=True,
         checkpoint=None,
     )
     return val_loss_values[-1]
@@ -164,7 +164,7 @@ def tune_transformer(params, train_loader, val_loader, downsample):
         save_path,
         writer,
         hp.TRANSFORMER_TEACHER_FORCE_RATIO,
-        enable_checkpoint=True,
+        enable_checkpoints=True,
         checkpoint=None,
         batch_size=hp.BATCH_SIZE,
     )
