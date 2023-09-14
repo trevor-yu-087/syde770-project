@@ -168,7 +168,7 @@ def LSTM_train_fn(
         dynamic_tf,
         tf_decay=0.01,
         min_tf_ratio=0.5,
-        enable_checkpoint=False,
+        enable_checkpoints=False,
         checkpoint=None,
         val_interval=1,
 ):
@@ -220,7 +220,7 @@ def LSTM_train_fn(
                 decoder_output[:,0,:] = output[:,0,:]
                 for i in range(1, train_target.shape[1]):
                     decoder_input = torch.zeros((train_dec_source.shape)).to(device)
-                    decoder_input[:,0:i,:] = train_dec_source[:,0:i,:]
+                    decoder_input[:,:i+1,:] = train_dec_source[:,:i+1,:]
                     output, hidden, cell = decoder_model(decoder_input, encoder_hidden, encoder_cell)
                     decoder_output[:,i,:] = output[:,i,:]
             else: # auto-regressive generation
@@ -228,7 +228,8 @@ def LSTM_train_fn(
                 decoder_output[:,0,:] = output[:,0,:]
                 for i in range (1, train_target.shape[1]):
                     decoder_input = torch.zeros((train_dec_source.shape)).to(device)
-                    decoder_input[:,:i,:] = decoder_output[:,:i,:]
+                    decoder_input[:,0,:] = train_dec_source[:,0,:]
+                    decoder_input[:,1:i+1,:] = decoder_output[:,:i,:]
                     output, hidden, cell = decoder_model(decoder_input, encoder_hidden, encoder_cell)
                     decoder_output[:,i,:] = output[:,i,:]
 
@@ -319,7 +320,8 @@ def LSTM_train_fn(
 
                     for i in range(1, val_target.shape[1]):
                         val_dec_input = torch.zeros((val_dec_source.shape)).to(device)
-                        val_dec_input[:,:i,:] = val_dec_output[:,:i,:]
+                        val_dec_input[:,0,:] =  val_dec_source[:,0,:]
+                        val_dec_input[:,1:i+1,:] = val_dec_output[:,:i,:]
                         output, hidden, cell = decoder_model(val_dec_input, val_encoder_hidden, val_encoder_cell)
                         val_dec_output[:,i,:] = output[:,i,:]
 
@@ -360,7 +362,7 @@ def LSTM_train_fn(
                 print(f"Epoch {epoch} MAE: {epoch_val_metric}")
 
                 # Save checkpoint
-                if enable_checkpoint:
+                if enable_checkpoints:
                     if not os.path.exists(os.path.join(save_path, 'checkpoint')):
                         os.makedirs(os.path.join(save_path, 'checkpoint'))
                     torch.save({'epoch': epoch,
@@ -397,11 +399,12 @@ def Transformer_train_fn(
         device,
         save_path,
         writer,
-        teacher_force_ratio=1,
-        enable_checkpoint=False,
+        teacher_force_ratio,
+        dynamic_tf,
+        tf_decay=0.01,
+        min_tf_ratio=0.5,
+        enable_checkpoints=False,
         checkpoint=None,
-        batch_size=1,
-        val_interval=1,
 ):
     best_metric = 1e4
     val_loss_values = []
@@ -412,6 +415,7 @@ def Transformer_train_fn(
         epoch_train_loss = 0
         epoch_train_metric = 0
         transformer_model.train()
+        print(f'Teacher Force Ratio:{teacher_force_ratio}')
 
         for train_step, train_data in enumerate(train_loader):
             train_enc_source = train_data['encoder_inputs'].to(device)
@@ -426,7 +430,7 @@ def Transformer_train_fn(
 
             # Forward pass
             train_dec_input = torch.zeros((train_dec_source.shape)).to(device)
-            transformer_output = torch.zeros((train_target.shape)).to(device)
+            train_transf_output = torch.zeros((train_target.shape)).to(device)
 
             train_dec_input[:,0,:] = train_dec_source[:,0,:]
 
@@ -438,12 +442,12 @@ def Transformer_train_fn(
                 tgt_lookahead=target_lookahead
             )
 
-            transformer_output[:,0,:] = output[:,0,:]
+            train_transf_output[:,0,:] = output[:,0,:]
 
             if random.random() < teacher_force_ratio: # teacher force targets
                 for i in range(1, train_target.shape[1]):
                     train_dec_input = torch.zeros((train_dec_source.shape)).to(device)
-                    train_dec_input[:,0:i,0] = train_dec_source[:,0:i,:]
+                    train_dec_input[:,:i+1,:] = train_dec_source[:,:i+1,:]
                     output = transformer_model(
                         src=train_enc_source, 
                         tgt=train_dec_input, 
@@ -451,11 +455,26 @@ def Transformer_train_fn(
                         tgt_padding=target_padding, 
                         tgt_lookahead=target_lookahead
                     )
-                    transformer_output[:,i,:] - output[:,i,:]
+                    train_transf_output[:,i,:] = output[:,i,:]
 
             else: # auto-regressive generation
                 for i in range(1, train_target.shape[1]):
                     train_dec_input = torch.zeros((train_dec_source.shape)).to(device)
+                    train_dec_input[:,0,:] = train_dec_source[:,0,:]
+                    train_dec_input[:,1:i+1,:] = train_transf_output[:,:i,:]
+                    output = transformer_model(
+                        src=train_enc_source, 
+                        tgt=train_dec_input, 
+                        src_padding=source_padding, 
+                        tgt_padding=target_padding, 
+                        tgt_lookahead=target_lookahead
+                    )
+                    train_transf_output[:,i,:] = output[:,i,:]
+
+            if dynamic_tf and teacher_force_ratio > min_tf_ratio+tf_decay:
+                teacher_force_ratio -= tf_decay
+            elif dynamic_tf and teacher_force_ratio < min_tf_ratio+tf_decay:
+                teacher_force_ratio = min_tf_ratio
 
                 
             # elif train_step !=0 and teacher_force == True:
@@ -480,7 +499,7 @@ def Transformer_train_fn(
             #         transformer_output = torch.cat([transformer_output, output[:,-1,:].unsqueeze(1)], dim=1)
             #     transformer_output = transformer_output[:,1:,:]
 
-            train_loss = loss_fn(transformer_output, train_target)
+            train_loss = loss_fn(train_transf_output, train_target)
 
             if torch.isnan(train_loss):
                 raise ValueError(f'Train loss returns NAN value \nEpoch: {epoch} \t Step: {train_step}')
@@ -495,7 +514,7 @@ def Transformer_train_fn(
             epoch_train_loss += train_loss.item()
 
             # Train metric loss
-            train_metric = metric_loss_fn(transformer_output, train_target)
+            train_metric = metric_loss_fn(train_transf_output, train_target)
             epoch_train_metric += train_metric
 
         # Average losses for tensorboard
@@ -504,73 +523,91 @@ def Transformer_train_fn(
         epoch_train_metric /= (train_step+1)
         writer.add_scalar('Training MAE per Epoch', epoch_train_metric, epoch)
         
+        transformer_model.eval()
+        with torch.no_grad():
+            epoch_val_loss = 0
+            epoch_val_metric = 0
 
-        if (epoch+1) % val_interval == 0:
-            transformer_model.eval()
-            with torch.no_grad():
-                epoch_val_loss = 0
-                epoch_val_metric = 0
-
-                for val_step, val_data in enumerate(val_loader):
-                    val_enc_source = val_data['encoder_inputs'].to(device)
-                    val_dec_source = val_data['decoder_inputs'].to(device)
-                    val_target = val_data['targets'].to(device)
-                    
-                    # Run validation model
-                    # val_transformer_output =  torch.zeros((val_target.shape))
-                    start = val_dec_source[:,0,:].unsqueeze(1)
-                    output = transformer_model(src=val_enc_source, tgt=start)
-                    val_transformer_output = torch.cat([start, output.unsqueeze(1)], dim=1)
-
-                    for i in range(1, val_target.shape[1]):
-                        output = transformer_model(src=val_enc_source, tgt=val_transformer_output)
-                        val_transformer_output = torch.cat([val_transformer_output, output[:,-1,:].unsqueeze(1)], dim=1)
-                    val_transformer_output = val_transformer_output[:,1:,:]
-
-                    val_loss = loss_fn(val_transformer_output, val_target) # perform loss calc without seed position
-
-                    if torch.isnan(val_loss):
-                        print(f'Loss NAN - Epoch: {epoch} \t Step: {val_step}')
-                        # raise ValueError('Val loss returns NAN value')
-
-                    # Val loss
-                    epoch_val_loss += val_loss.item()
-
-                    # Val metric loss
-                    val_metric = metric_loss_fn(val_transformer_output, val_target)
-                    epoch_val_metric += val_metric
-
-                # Average validation losses for tensorboard
-                epoch_val_loss /= (val_step+1)
-                writer.add_scalar('Validation MSE per Epoch', epoch_val_loss, epoch)
-                val_loss_values.append(epoch_val_loss)
-                epoch_val_metric /= (val_step+1)
-                writer.add_scalar('Validation MAE per Epoch', epoch_val_metric, epoch)
-                val_metric_values.append(epoch_val_metric)
+            for val_step, val_data in enumerate(val_loader):
+                val_enc_source = val_data['encoder_inputs'].to(device)
+                val_dec_source = val_data['decoder_inputs'].to(device)
+                val_target = val_data['targets'].to(device)
                 
-                print(f"Epoch {epoch} MSE Loss: {epoch_val_loss}")
-                print(f"Epoch {epoch} MAE: {epoch_val_metric}")
+                # Run validation model
+                val_dec_input = torch.zeros((val_dec_source.shape)).to(device)
+                val_transf_output = torch.zeros((val_target.shape)).to(device)
+
+                val_dec_input[:,0,:] = val_dec_source[:,0,:]
+
+                output = transformer_model(
+                    src=val_enc_source, 
+                    tgt=val_dec_input, 
+                )
+
+                val_transf_output[:,0,:] = output[:,0,:]
+                for i in range(1, val_target.shape[1]):
+                    val_dec_input = torch.zeros((val_dec_source.shape)).to(device)
+                    val_dec_input[:,0,:] = val_dec_source[:,0,:]
+                    val_dec_input[:,1:i+1,:] = val_transf_output[:,:i,:]
+                    output = transformer_model(
+                        src=val_enc_source, 
+                        tgt=val_dec_input, 
+                    )
+                    val_transf_output[:,i,:] = output[:,i,:]
+                # # val_transformer_output =  torch.zeros((val_target.shape))
+                # start = val_dec_source[:,0,:].unsqueeze(1)
+                # output = transformer_model(src=val_enc_source, tgt=start)
+                # val_transformer_output = torch.cat([start, output.unsqueeze(1)], dim=1)
+
+                # for i in range(1, val_target.shape[1]):
+                #     output = transformer_model(src=val_enc_source, tgt=val_transformer_output)
+                #     val_transformer_output = torch.cat([val_transformer_output, output[:,-1,:].unsqueeze(1)], dim=1)
+                # val_transformer_output = val_transformer_output[:,1:,:]
+
+                val_loss = loss_fn(val_transf_output, val_target) # perform loss calc without seed position
+
+                if torch.isnan(val_loss):
+                    print(f'Loss NAN - Epoch: {epoch} \t Step: {val_step}')
+                    # raise ValueError('Val loss returns NAN value')
+
+                # Val loss
+                epoch_val_loss += val_loss.item()
+
+                # Val metric loss
+                val_metric = metric_loss_fn(val_transf_output, val_target)
+                epoch_val_metric += val_metric
+
+            # Average validation losses for tensorboard
+            epoch_val_loss /= (val_step+1)
+            writer.add_scalar('Validation MSE per Epoch', epoch_val_loss, epoch)
+            val_loss_values.append(epoch_val_loss)
+            epoch_val_metric /= (val_step+1)
+            writer.add_scalar('Validation MAE per Epoch', epoch_val_metric, epoch)
+            val_metric_values.append(epoch_val_metric)
+            
+            print(f"Epoch {epoch} MSE Loss: {epoch_val_loss}")
+            print(f"Epoch {epoch} MAE: {epoch_val_metric}")
 
 
-                # Save checkpoint
-                if enable_checkpoint:
-                    if not os.path.exists(os.path.join(save_path, 'checkpoint')):
-                        os.makedirs(os.path.join(save_path, 'checkpoint'))
-                    torch.save({'epoch': epoch,
-                                'transformer_model_state_dict': transformer_model.state_dict(),
-                                'transformer_optim_state_dict': transformer_optimizer.state_dict(),
-                                'train_loss': epoch_train_loss,
-                                'val_loss': epoch_val_loss},
-                            os.path.join(save_path, 'checkpoint', 'checkpoint_{}.pth'.format(epoch))
-                            )
-                    
-                    # Save best model
-                    if not os.path.exists(os.path.join(save_path, 'best')):
-                        os.makedirs(os.path.join(save_path, 'best'))
-                    if epoch_val_metric < best_metric:
-                        best_metric = epoch_val_metric
-                        best_metric_epoch = epoch
-                        torch.save(transformer_model.state_dict(), os.path.join(save_path, 'best', 'best_transformer_model.pth'))
+            # Save checkpoint
+            if enable_checkpoints:
+                if not os.path.exists(os.path.join(save_path, 'checkpoint')):
+                    os.makedirs(os.path.join(save_path, 'checkpoint'))
+                torch.save({'epoch': epoch,
+                            'transformer_model_state_dict': transformer_model.state_dict(),
+                            'transformer_optim_state_dict': transformer_optimizer.state_dict(),
+                            'train_loss': epoch_train_loss,
+                            'val_loss': epoch_val_loss},
+                        os.path.join(save_path, 'checkpoint', 'checkpoint_{}.pth'.format(epoch))
+                        )
+                
+                # Save best model
+                if not os.path.exists(os.path.join(save_path, 'best')):
+                    os.makedirs(os.path.join(save_path, 'best'))
+                if epoch_val_metric < best_metric:
+                    best_metric = epoch_val_metric
+                    best_metric_epoch = epoch
+                    torch.save(transformer_model.state_dict(), os.path.join(save_path, 'best', 'best_transformer_model.pth'))
 
     writer.close()
     return val_loss_values
