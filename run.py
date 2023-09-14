@@ -44,13 +44,13 @@ lstm_params = {
 }
 
 transformer_params = {
-'hidden_size': [32, 128],
+'hidden_size': [128, 128],
 'dropout': [0.06315639803617487, 0.08700484164091785],
 'lr': [0.002953296290952476, 0.005599919411324668],
 'weight_decay': [0.0001295885340230645, 0.00016240741640480654],
-'epochs': [37, 30],
+'epochs': [50, 30],
 'sample_period': [0.04, 0.02],
-'seq_len': [512, 1024],
+'seq_len': [512, 1024], # for cnn downsample
 'downsample_ratio': [1, 2] # What is this used for?
 }
 
@@ -129,6 +129,10 @@ def run(
             val_loader,
             downsample,
             SAVE_PATH,
+            teacher_force_ratio,
+            dynamic_tf,
+            tf_decay,
+            min_tf_ratio,
             writer,
             enable_checkpoints,
             transformer_params,
