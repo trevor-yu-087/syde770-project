@@ -14,7 +14,7 @@ from utils.get_loader import get_loaders
 
 DATA_JSON = Path('D:\\Jonathan\\3-Datasets\\syde770_processed_data\\subjects_2023-07-12\\data.json')
 DIR = Path('D:\\Jonathan\\2-Projects\\syde770-project')
-MODEL = 'lstm'
+MODEL = 'transformer'
 SAVE_DIR = Path(f'{DIR}/outputs/tuning/{MODEL}/{datetime.now().strftime("%Y-%m-%d_%H%M%S")}')
 
 print(f'CUDA available: {torch.cuda.is_available()}')
@@ -107,23 +107,22 @@ def tune_lstm(trial, params, train_loader, val_loader, downsample):
 def objective_transformer(trial):
     params = {
         'hidden_size': trial.suggest_categorical('hidden_size', [32, 64, 128]),
-        'num_layers': trial.suggest_int('num_layers', 1, 5),
+        'num_layers': trial.suggest_int('num_layers', 5, 10),
         'dropout_p': trial.suggest_float('dropout_p', 0.05, 0.15),
         'kernel_size': trial.suggest_categorical('kernel_size', [7, 15, 31, 63]),
         'learning_rate': trial.suggest_float('learning_rate', 1e-4, 1e-2, log=True),
-        'weight_decay': trial.suggest_float('weight_decay', 1e-4, 1e-2, log=True),
-        'num_epochs': trial.suggest_int('num_epoch', 25, 50),
-        # 'teacher_force_ratio': trial.suggest_categorical('teacher_force_ratio', [0.9, 0.8, 0.7]),
-        # 'teacher_force_decay': trial.suggest_float('teacher_force_decay', 0.6, 0.95, log=True),
-        # 'min_teacher_force': trial.suggest_int('min_teacher_force', 0, 9)
+        'weight_decay': trial.suggest_float('weight_decay', 1e-6, 1e-4, log=True),
+        'num_epochs': trial.suggest_int('num_epoch', 50, 100),
+        'teacher_force_ratio': trial.suggest_float('teacher_force_ratio', 0.3, 1.0, step=0.1),
+        # 'dynamic_tf': trial.suggest_categorical('dynamic_tf', [True, False])
     }
 
-    accuracy =  tune_transformer(params, train_loader, val_loader, downsample)
+    accuracy =  tune_transformer(trial, params, train_loader, val_loader, downsample)
     return accuracy
 
-def tune_transformer(params, train_loader, val_loader, downsample):
+def tune_transformer(trial, params, train_loader, val_loader, downsample):
     from torch.utils.tensorboard import SummaryWriter
-    save_path = Path(f'{SAVE_DIR}/outputs/tuning/{MODEL}/{datetime.now().strftime("%Y-%m-%d_%H%M%S")}')
+    save_path = Path(f'{SAVE_DIR}/trial_{trial.number}')
     writer = SummaryWriter(log_dir=f'{save_path}/tensorboard')
 
     # Initialize transformer
@@ -137,8 +136,8 @@ def tune_transformer(params, train_loader, val_loader, downsample):
         seq_len=512,
         downsample=downsample,
         output_size=7,
-        num_encoder_layers=5,
-        num_decoder_layers=5
+        num_encoder_layers=params['num_layers'],
+        num_decoder_layers=params['num_layers']
     ).to(hp.DEVICE)
 
     # Initialize loss functions
@@ -163,10 +162,10 @@ def tune_transformer(params, train_loader, val_loader, downsample):
         hp.DEVICE,
         save_path,
         writer,
-        hp.TRANSFORMER_TEACHER_FORCE_RATIO,
+        params['teacher_force_ratio'],
+        dynamic_tf=False,
         enable_checkpoints=True,
         checkpoint=None,
-        batch_size=hp.BATCH_SIZE,
     )
     return val_loss_values[-1]
     
