@@ -108,7 +108,7 @@ def run_lstm (train_loader, val_loader, downsample, save_path, teacher_force_rat
         dynamic_tf,
         tf_decay,
         min_tf_ratio,
-        enable_checkpoint=enable_checkpoints,
+        enable_checkpoints=enable_checkpoints,
         checkpoint=None,
     )
 
@@ -172,7 +172,7 @@ def run_cnnlstm (train_loader, val_loader, downsample, save_path, writer, enable
         checkpoint=None,
     )
 
-def run_transformer(train_loader, val_loader, downsample, save_path, writer, enable_checkpoints, params = None):
+def run_transformer(train_loader, val_loader, downsample, save_path, teacher_force_ratio, dynamic_tf, tf_decay, min_tf_ratio, writer, enable_checkpoints, params = None):
     # Initialize transformer
     transformer_model = TransformerModel(
         input_size=9,
@@ -213,10 +213,12 @@ def run_transformer(train_loader, val_loader, downsample, save_path, writer, ena
         hp.DEVICE,
         save_path,
         writer,
-        hp.TRANSFORMER_TEACHER_FORCE_RATIO,
-        enable_checkpoints,
+        teacher_force_ratio,
+        dynamic_tf,
+        tf_decay=0.01,
+        min_tf_ratio=0.5,
+        enable_checkpoints=enable_checkpoints,
         checkpoint=None,
-        batch_size=hp.BATCH_SIZE,
     )
 
 def run_cnntransformer(train_loader, val_loader, downsample, save_path, writer, enable_checkpoints, params = None):
