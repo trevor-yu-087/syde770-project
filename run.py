@@ -7,6 +7,7 @@ import json
 import glob
 from datetime import datetime
 import typer
+from enum import Enum
 
 import model.hyperparameters as hp
 from utils.get_loader import get_loaders
@@ -22,6 +23,13 @@ from utils.utils import (
 )
 
 app = typer.Typer()
+class NeuralNetwork(str, Enum):
+    cnn = 'cnn'
+    ronin = 'ronin'
+    lstm = 'lstm'
+    cnn_lstm = 'cnn_lstm'
+    transformer = 'transformer'
+    cnn_transformer = 'cnn_transformer'
 
 cnn_params = {
         'input_size': 32,
@@ -58,7 +66,7 @@ transformer_params = {
 def run(
     data_json: Path,
     save_dir: Path,
-    model: str, # ronin, cnn, lstm, cnn-lstm, transformer, or cnn-transformer
+    model: NeuralNetwork,
     teacher_force_ratio: float = 0.5, 
     dynamic_tf: bool = False, 
     min_tf_ratio: float = 0.5,
