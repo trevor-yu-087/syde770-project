@@ -18,7 +18,7 @@ from utils.dataset import get_ronin_data
 from utils.metric import compute_ate_rte
 
 
-def run_cnn (train_loader, val_loader, save_path, writer, enable_checkpoints, params = None):
+def run_cnn (train_loader, val_loader, save_path, writer, enable_checkpoints, params=None):
     # initialize 1D ResNet18
     model = ResNet_1D(num_classes=3).to(hp.DEVICE)
     pytorch_total_params = sum(p.numel() for p in model.parameters())
@@ -51,7 +51,7 @@ def run_cnn (train_loader, val_loader, save_path, writer, enable_checkpoints, pa
         checkpoint=None,
     )
 
-def run_lstm (train_loader, val_loader, downsample, save_path, teacher_force_ratio, dynamic_tf, tf_decay, min_tf_ratio, writer, enable_checkpoints, params = None):
+def run_lstm (train_loader, val_loader, seq_len, downsample, save_path, teacher_force_ratio, dynamic_tf, tf_decay, min_tf_ratio, writer, enable_checkpoints, params = None):
     # Initialize encoder and decoder
     encoder_model = Encoder(
         input_size=9,
@@ -61,7 +61,7 @@ def run_lstm (train_loader, val_loader, downsample, save_path, teacher_force_rat
         channels=params['channels'][0],
         stride=2,
         kernel_size=63,
-        seq_len=1024,
+        seq_len=seq_len,
         downsample=downsample,
         bidirection=False
     ).to(hp.DEVICE)
@@ -112,7 +112,7 @@ def run_lstm (train_loader, val_loader, downsample, save_path, teacher_force_rat
         checkpoint=None,
     )
 
-def run_cnnlstm (train_loader, val_loader, downsample, save_path, writer, enable_checkpoints, params = None):
+def run_cnnlstm (train_loader, val_loader, seq_len, downsample, save_path, teacher_force_ratio, dynamic_tf, tf_decay, min_tf_ratio, writer, enable_checkpoints, params = None):
     # Initialize encoder and decoder
     encoder_model = Encoder(
         input_size=9,
@@ -122,9 +122,9 @@ def run_cnnlstm (train_loader, val_loader, downsample, save_path, writer, enable
         channels=params['channels'][1],
         stride=2,
         kernel_size=63,
-        seq_len=1024, # if downsample=True
+        seq_len=seq_len, # if downsample=True
         downsample=downsample,
-        bidirection=True
+        bidirection=False
     ).to(hp.DEVICE)
     decoder_model = Decoder(
         input_size=7,
@@ -132,7 +132,7 @@ def run_cnnlstm (train_loader, val_loader, downsample, save_path, writer, enable
         output_size=7,
         num_layers=2,
         dropout_p=params['dropout'][1],
-        bidirection=True
+        bidirection=False
     ).to(hp.DEVICE)
 
     # Initialize loss functions
@@ -165,10 +165,11 @@ def run_cnnlstm (train_loader, val_loader, downsample, save_path, writer, enable
         hp.DEVICE,
         save_path,
         writer,
-        hp.TEACHER_FORCE_RATIO,
-        teacher_force_decay=0.8,
-        min_teacher_force=4,
-        enable_checkpoint=enable_checkpoints,
+        teacher_force_ratio,
+        dynamic_tf,
+        tf_decay,
+        min_tf_ratio,
+        enable_checkpoints=enable_checkpoints,
         checkpoint=None,
     )
 
@@ -270,11 +271,13 @@ def run_cnntransformer(train_loader, val_loader, downsample, save_path, writer, 
 
 def load_checkpoint(encoder_model, decoder_model, path):
     """Load checkpoint into LSTM test model
+    
     Parameters:
     -----------
     encoder_model: initialized LSTM encoder model
     decoder_model: initialized LSTM decoder model
     path: path to trained weights
+
     Returns:
     --------
     encoder_model: LSTM encoder model with loaded weights
@@ -297,43 +300,6 @@ def load_checkpoint_Transformer(transformer_model, path):
     ))
     
     return transformer_model
-
-# def plot(data, title):
-#     for i in range(data.shape[0]):
-#         fig, axs = plt.subplots(2, 1, figsize=(10, 6))
-#         labels = ["X", "Y", "Z", "qx", "qy", "qz", "qw"]
-#         b, l, d = data.shape
-#         t = np.arange(512)
-#         for j in range(3):
-#             axs[0].plot(t, data[i, :, j], label=labels[j])
-#         axs[0].legend()
-#         for j in range(3, d):
-#             axs[1].plot(t, data[i, :, j], label=labels[j])
-#         axs[1].legend()
-#         plt.suptitle(f'{title} Batch {i}')
-#         plt.show()
-
-def plot(outputs, targets, step):
-    for i in range(targets.shape[0]):
-        fig, axs = plt.subplots(4, 1, figsize=(10, 12))
-        labels = ["X", "Y", "Z", "qx", "qy", "qz", "qw"]
-        b, l, d = targets.shape
-        t = np.arange(512)
-        for j in range(3):
-            axs[0].plot(t, outputs[i, :, j], label=labels[j])
-            axs[0].set_title(f'Test Output: Step {step} Batch {i}')
-            axs[1].plot(t, targets[i, :, j], label=labels[j])
-            axs[1].set_title(f'Test Target: Step {step} Batch {i}')
-        axs[0].legend()
-        axs[1].legend()
-        for j in range(3, d):
-            axs[2].plot(t, outputs[i, :, j], label=labels[j])
-            axs[2].set_title(f'Test Output: Step {step} Batch {i}')
-            axs[3].plot(t, targets[i, :, j], label=labels[j])
-            axs[3].set_title(f'Test Target: Step {step} Batch {i}')
-        axs[1].legend()
-        # plt.suptitle(f'{title} Batch {i}')
-        plt.show()
 
 def test_ronin(
         test_files,
@@ -457,11 +423,6 @@ def test_ronin(
     targets = np.vstack(np.array(targets))
     pred_vs_error(preds, targets, 'RoNIN Test')
 
-    # np.save(f'outputs.npy', np.array(outputs, dtype=object), allow_pickle=True)
-    # np.save(f'targets.npy', np.array(targets, dtype=object), allow_pickle=True)
-
-
-
 def test_LSTM(
         test_loader,
         # encoder_model,
@@ -470,6 +431,7 @@ def test_LSTM(
         # metric_loss_fn,
         params,
         path,
+        seq_len,
         downsample: bool = False
     ):
     preds = []
@@ -485,7 +447,7 @@ def test_LSTM(
         channels=params['channels'][param],
         stride=2,
         kernel_size=params['kernel_size'][param],
-        seq_len=1024,
+        seq_len=seq_len,
         downsample=downsample,
         bidirection=False
     ).to(hp.DEVICE)
@@ -533,12 +495,6 @@ def test_LSTM(
                 output, hidden, cell = decoder_model(output, test_enc_hidden, test_enc_cell)
                 test_dec_output[:,i,:] = output[:,i,:]
 
-            # # test non-autoregressive decoder output
-            # decoder_input = torch.zeros((test_dec_source_unpacked.shape)).to(hp.DEVICE)
-            # decoder_input[:,0,:] = test_dec_source_unpacked[:,0,:]
-            # output, (hidden, cell) = decoder_model.LSTM(decoder_input, (test_encoder_hidden, test_encoder_cell))
-            # test_dec_output = decoder_model.fc(output)
-
             # append for plots
             preds.append((test_dec_output.cpu().detach().numpy()).reshape((-1, 7)))
             targets.append((test_target.cpu().detach().numpy()).reshape((-1, 7)))
@@ -566,14 +522,12 @@ def test_LSTM(
     preds = np.vstack(np.array(preds))
     targets = np.vstack(np.array(targets))
     pred_vs_error(preds, targets, 'LSTM Test')
-    # np.save(f'{path}/outputs.npy', np.array(outputs, dtype=object), allow_pickle=True)
-    # np.save(f'{path}/targets.npy', np.array(targets, dtype=object), allow_pickle=True)
-
 
 def test_transformer(
         test_loader,
         params,
         path,
+        seq_len,
         downsample: bool = False,
     ):
     preds = []
@@ -588,7 +542,7 @@ def test_transformer(
         n_heads=int(params['hidden_size'][0]/4),
         stride=2,
         kernel_size=15,
-        seq_len=params['seq_len'][0],
+        seq_len=seq_len,
         downsample=downsample,
         output_size=7,
         num_encoder_layers=5,

@@ -12,14 +12,16 @@ from model.Transformer import TransformerModel
 from utils.train import CNN_train_fn, LSTM_train_fn, Transformer_train_fn
 from utils.get_loader import get_loaders
 
+# USER EDITABLE GLOBAL VARIABLES 
+###############################################################################
 DATA_JSON = Path('D:\\Jonathan\\3-Datasets\\syde770_processed_data\\subjects_2023-07-12\\data.json')
 DIR = Path('D:\\Jonathan\\2-Projects\\syde770-project')
 MODEL = 'transformer'
-SAVE_DIR = Path(f'{DIR}/outputs/tuning/{MODEL}/{datetime.now().strftime("%Y-%m-%d_%H%M%S")}')
+###############################################################################
 
+SAVE_DIR = Path(f'{DIR}/outputs/tuning/{MODEL}/{datetime.now().strftime("%Y-%m-%d_%H%M%S")}')
 print(f'CUDA available: {torch.cuda.is_available()}')
 print(f'Tuning {MODEL}')
-
 
 train_loader, val_loader, test_loader, downsample = get_loaders(DATA_JSON, MODEL)
 

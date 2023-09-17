@@ -4,7 +4,6 @@ import torch.nn.functional as F
 import random
 import os
 import model.hyperparameters as hp
-from utils.visualize import pred_vs_error
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -280,32 +279,7 @@ def LSTM_train_fn(
                     val_enc_source = val_data['encoder_inputs'].to(device)
                     val_dec_source = val_data['decoder_inputs'].to(device)
                     val_target = val_data['targets'].to(device)
-                    # # unpack val_dec_source for auto-regressive generation
-                    # val_dec_source_unpacked, _ = torch.nn.utils.rnn.pad_packed_sequence(val_dec_source, batch_first=True)
-                    # val_dec_source_unpacked.to(device)
-                    # # unpack val_target for loss functions
-                    # val_target_unpacked, _ = torch.nn.utils.rnn.pad_packed_sequence(val_target, batch_first=True)
-                    # val_target_unp acked.to(device)
-
-                    # fig, axes = plt.subplots(3,1)
-                    # fig.suptitle('Val_IMU Inputs (Batch 0)')
-                    # t = np.arange(val_target.shape[1])
-                    # for i in range(3):
-                    #     axes[0].plot(t, val_enc_source[0,:,i].detach().cpu().numpy())
-                    # axes[0].set_title(f'Accelerometer [x,y,z]')
-                    # for i in range(3, 6):
-                    #     axes[1].plot(t, val_enc_source[0,:,i].detach().cpu().numpy())
-                    # axes[1].set_title(f'Magnetometer [x,y,z]')
-                    # for i in range(6, 9):
-                    #     axes[2].plot(t, val_enc_source[0,:,i].detach().cpu().numpy())
-                    # axes[2].set_title(f'Gyroscope [x,y,z]')
-                    # writer.add_figure(
-                    #     'Val Inputs', 
-                    #     fig,
-                    #     val_step,
-                    #     True
-                    # )
-
+    
                     # Run validation model
                     val_encoder_hidden, val_encoder_cell = encoder_model(val_enc_source)
                     # val_encoder_cell = torch.zeros(val_encoder_cell.shape).to(device)
@@ -324,18 +298,6 @@ def LSTM_train_fn(
                         val_dec_input[:,1:i+1,:] = val_dec_output[:,:i,:]
                         output, hidden, cell = decoder_model(val_dec_input, val_encoder_hidden, val_encoder_cell)
                         val_dec_output[:,i,:] = output[:,i,:]
-
-                    # decoder_seed = val_dec_source[:,0,:].unsqueeze(1)
-                    # output, (hidden, cell) = decoder_model.LSTM(decoder_seed,(val_encoder_hidden, val_encoder_cell))
-                    # # forward_output, backward_output = torch.split(output, split_size_or_sections=32, dim=2)
-                    # output = decoder_model.fc(output)
-                    # val_dec_output[:,0,:] = output.squeeze()
-
-                    # for i in range(1, val_dec_source.shape[1]):
-                    #     output, (hidden, cell) = decoder_model.LSTM(output, (hidden, cell))
-                    #     # forward_output, backward_output = torch.split(output, split_size_or_sections=32, dim=2)
-                    #     output = decoder_model.fc(output)
-                    #     val_dec_output[:,i,:] = output.squeeze()
 
                     val_loss = loss_fn(val_dec_output, val_target)
 
@@ -476,29 +438,6 @@ def Transformer_train_fn(
             elif dynamic_tf and teacher_force_ratio < min_tf_ratio+tf_decay:
                 teacher_force_ratio = min_tf_ratio
 
-                
-            # elif train_step !=0 and teacher_force == True:
-            #     transformer_output = transformer_model(
-            #         src=train_enc_source, 
-            #         tgt=train_dec_source, 
-            #         src_padding=source_padding, 
-            #         tgt_padding=target_padding, 
-            #         tgt_lookahead=target_lookahead
-            #     )
-            # # autoregressive training
-            # elif train_step != 0 and teacher_force == False:
-            #     start = train_dec_source[:,0,:].unsqueeze(1)
-            #     output = transformer_model(
-            #         src=train_enc_source, 
-            #         tgt=start, 
-            #     )
-            #     transformer_output = torch.cat([start, output.unsqueeze(1)], dim=1)
-
-            #     for i in range(1, train_dec_source.shape[1]):
-            #         output = transformer_model(src=train_enc_source, tgt=transformer_output)
-            #         transformer_output = torch.cat([transformer_output, output[:,-1,:].unsqueeze(1)], dim=1)
-            #     transformer_output = transformer_output[:,1:,:]
-
             train_loss = loss_fn(train_transf_output, train_target)
 
             if torch.isnan(train_loss):
@@ -554,21 +493,12 @@ def Transformer_train_fn(
                         tgt=val_dec_input, 
                     )
                     val_transf_output[:,i,:] = output[:,i,:]
-                # # val_transformer_output =  torch.zeros((val_target.shape))
-                # start = val_dec_source[:,0,:].unsqueeze(1)
-                # output = transformer_model(src=val_enc_source, tgt=start)
-                # val_transformer_output = torch.cat([start, output.unsqueeze(1)], dim=1)
 
-                # for i in range(1, val_target.shape[1]):
-                #     output = transformer_model(src=val_enc_source, tgt=val_transformer_output)
-                #     val_transformer_output = torch.cat([val_transformer_output, output[:,-1,:].unsqueeze(1)], dim=1)
-                # val_transformer_output = val_transformer_output[:,1:,:]
-
-                val_loss = loss_fn(val_transf_output, val_target) # perform loss calc without seed position
+                val_loss = loss_fn(val_transf_output, val_target)
 
                 if torch.isnan(val_loss):
                     print(f'Loss NAN - Epoch: {epoch} \t Step: {val_step}')
-                    # raise ValueError('Val loss returns NAN value')
+                    raise ValueError('Val loss returns NAN value')
 
                 # Val loss
                 epoch_val_loss += val_loss.item()
@@ -612,10 +542,20 @@ def Transformer_train_fn(
     writer.close()
     return val_loss_values
 
-
 def get_stats(
         loader
 ):
+    """Generate statistics of data for zero-score normalization (standardization) of RoNIN 
+
+    Parameters:
+    -----------
+    loader: torch dataloader for data split
+
+    Returns:
+    --------
+    velocity_std: list of standard deviation values for xyz directions
+    velocity_mean: list of mean values for xyz directions  
+    """
     import numpy as np
     x, y, z = [], [], []
     for step, data in enumerate(loader):

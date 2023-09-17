@@ -2,9 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from pathlib import Path
-import os
 import json
-import glob
 from datetime import datetime
 import typer
 from enum import Enum
@@ -24,13 +22,13 @@ from utils.utils import (
 
 app = typer.Typer()
 class NeuralNetwork(str, Enum):
-    cnn = 'cnn'
     ronin = 'ronin'
     lstm = 'lstm'
     cnn_lstm = 'cnn_lstm'
     transformer = 'transformer'
     cnn_transformer = 'cnn_transformer'
 
+# parameters for training/testing
 cnn_params = {
         'input_size': 32,
         'dropout': 0.1,
@@ -39,18 +37,16 @@ cnn_params = {
         'weight_decay': 1e-4,
         'epochs': 100,
     }
-
 lstm_params = {
-    'hidden_size': [128, 64],
-    'num_layers': [2, 1],
-    'kernel_size': [63, 31],
-    'dropout': [0.1055526565998549, 0.1],
+    'hidden_size': [64, 64],
+    'num_layers': [1, 1],
+    'kernel_size': [63, 63],
+    'dropout': [0.08698052733915022, 0.1],
     'channels': [9, 64],
-    'lr': [0.001146595975274196, 1e-3],
-    'weight_decay': [6.889456501068434e-05, 0.000100786933714903564],
-    'epochs': [100, 35],
+    'lr': [0.007948288707394854, 1e-3],
+    'weight_decay': [1.8554248638243292e-06, 0.000100786933714903564],
+    'epochs': [125, 35],
 }
-
 transformer_params = {
 'hidden_size': [128, 128],
 'dropout': [0.06315639803617487, 0.08700484164091785],
@@ -58,7 +54,6 @@ transformer_params = {
 'weight_decay': [0.0001295885340230645, 0.00016240741640480654],
 'epochs': [50, 30],
 'sample_period': [0.04, 0.02],
-'seq_len': [512, 1024], # for cnn downsample
 'downsample_ratio': [1, 2] # What is this used for?
 }
 
@@ -67,13 +62,27 @@ def run(
     data_json: Path,
     save_dir: Path,
     model: NeuralNetwork,
+    seq_len: int=32,
     teacher_force_ratio: float = 0.5, 
     dynamic_tf: bool = False, 
     min_tf_ratio: float = 0.5,
     tf_decay: float = 0.01,
     enable_checkpoints: bool = False, 
-):
+) -> None:
+    """Run model training 
 
+    Parameters:
+    -----------
+    data_json (Path): path to json with dataset paths (see README for examples)
+    save_dir (Path): path to output directory
+    model (string [ronin, lstm, cnn_lstm, transformer, cnn_transformer]): name of model for training
+    seq_len (integer): sequence length for input (note sequence length output is halved for cnn downsampling models)
+    teacher_force_ratio (float [0.0:1.0]): teacher force ratio for lstm/transformer variant models
+    dynamic_tf (bool): use of a dynamic teacher force ratio (ie. tf ratio decay)
+    min_tf_ratio (float): minimum teacher force ratio value can decay to
+    tf_decay (float): teacher force ratio decay value subtracted each step
+    enable_checkpoints (bool): save epoch checkpoints
+    """
     # create output save path
     SAVE_PATH = Path(f'{save_dir}/outputs/{model}/{datetime.now().strftime("%Y-%m-%d_%H%M%S")}')
     print(f'CUDA available: {torch.cuda.is_available()}')
@@ -81,19 +90,9 @@ def run(
 
     from torch.utils.tensorboard import SummaryWriter
     writer = SummaryWriter(log_dir=f'{SAVE_PATH}/tensorboard')
-    TEST_PATH = SAVE_PATH
 
-    train_loader, val_loader, test_loader, downsample = get_loaders(data_json, model)
-
-    if model == 'cnn':
-        run_cnn(
-            train_loader,
-            val_loader,
-            SAVE_PATH,
-            writer,
-            enable_checkpoints,
-            cnn_params,
-        )
+    # get loaders
+    train_loader, val_loader, test_loader, downsample = get_loaders(data_json, model, seq_len)
 
     if model == 'ronin':
         run_cnn(
@@ -104,11 +103,11 @@ def run(
             enable_checkpoints,
             cnn_params,
         )
-
     if model == 'lstm':
         run_lstm(
                 train_loader,
                 val_loader,
+                seq_len,
                 downsample,
                 SAVE_PATH,
                 teacher_force_ratio,
@@ -119,18 +118,21 @@ def run(
                 enable_checkpoints,
                 lstm_params,
             )
-
-    elif model == 'cnn-lstm':
+    elif model == 'cnn_lstm':
         run_cnnlstm(
             train_loader,
             val_loader,
+            seq_len,
             downsample,
             SAVE_PATH,
+            teacher_force_ratio,
+            dynamic_tf,
+            tf_decay,
+            min_tf_ratio,
             writer,
             enable_checkpoints,
             lstm_params,
-        )
-            
+        )           
     elif model == 'transformer':
         run_transformer(
             train_loader,
@@ -145,7 +147,7 @@ def run(
             enable_checkpoints,
             transformer_params,
         )
-    elif model == 'cnn-transformer':
+    elif model == 'cnn_transformer':
         run_cnntransformer(
             train_loader,
             val_loader,
@@ -159,10 +161,20 @@ def run(
 @app.command()
 def test(
     data_json: Path,
-    model: str, # ronin, cnn, lstm, cnn-lstm, transformer, or cnn-transformer
-    checkpoint_path: str = None, # path to model checkpoints   
+    checkpoint_path: Path,
+    model: str, 
+    seq_len: int=32,  
 ):
-    _, _, test_loader, _ = get_loaders(data_json, model)
+    """Run model testing
+
+    Parameters:
+    -----------
+    data_json (Path): path to json with dataset paths (see README for examples)
+    checkpoint_path (Path): path to checkpoints directory output from training
+    model (string [ronin, lstm, cnn_lstm, transformer, cnn_transformer]): name of model for training
+    seq_len (integer): sequence length for input (note sequence length output is halved for cnn downsampling models)
+    """
+    _, _, test_loader, _ = get_loaders(data_json, model, seq_len)
 
     with data_json.open('r') as f:
         valid_files = json.loads(f.read())
@@ -178,14 +190,23 @@ def test(
         test_LSTM(
             test_loader,
             lstm_params,
-            checkpoint_path
+            checkpoint_path,
+            seq_len
         )
-    elif model == 'cnn-lstm':
+    elif model == 'cnn_lstm':
         test_LSTM(
             test_loader,
             lstm_params,
             checkpoint_path,
+            seq_len,
             downsample = True
+        )
+    elif model == 'transformer':
+        test_transformer(
+            test_loader,
+            transformer_params,
+            checkpoint_path,
+            seq_len
         )
     else:
         raise Exception('Unsupported model type')
