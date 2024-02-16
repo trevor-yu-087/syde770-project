@@ -45,7 +45,7 @@ lstm_params = {
     'channels': [9, 64],
     'lr': [0.007948288707394854, 1e-3],
     'weight_decay': [1.8554248638243292e-06, 0.000100786933714903564],
-    'epochs': [125, 35],
+    'epochs': [500, 35],
 }
 transformer_params = {
 'hidden_size': [128, 128],
@@ -106,7 +106,7 @@ def run(
     if model == 'lstm':
         run_lstm(
                 train_loader,
-                val_loader,
+                train_loader,
                 seq_len,
                 downsample,
                 SAVE_PATH,
