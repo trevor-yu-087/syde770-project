@@ -21,7 +21,7 @@ class SmartwatchDataset(torch.utils.data.Dataset):
             df = df.drop("time", axis=1)
             df = df.resample(f"{sample_period}S").mean()
             df = df.interpolate()
-            self.data.append(df.values)
+            self.data.append(df)
 
     def __len__(self):
         return len(self.data)
@@ -29,9 +29,23 @@ class SmartwatchDataset(torch.utils.data.Dataset):
     def __getitem__(self, index):
         """Returns tuple of (imu, mocap) at index"""
         item = self.data[index]
-        imu = item[:, 7:]  # IMU sensor data [accel, mag, gyro]
-        mocap = item[:, 0:7]  # Mocap data [pos]
-        return imu, mocap
+
+        # IMU sensor data [accel, mag, gyro]
+        imu = item.loc[:, ['MF_a_1', 'MF_a_2', 'MF_a_3', 'MF_m_1', 'MF_m_2', 'MF_m_3', 'MF_g_1', 'MF_g_2', 'MF_g_3']]  
+        
+        # Mocap data [shoulder pos, wrist pos, euler]
+        mocap = item.loc[:, ['TFM_R_WRIST_X', 'TFM_R_WRIST_Y', 'TFM_R_WRIST_Z', 'alpha', 'beta', 'gamma']]  
+
+        # Normalize wrist position
+        length = 1 #
+        acr = item.loc[:, ['TFM_R_ACR_X', 'TFM_R_ACR_Y', 'TFM_R_ACR_Z']].values
+        wrist = item.loc[:, ['TFM_R_WRIST_X', 'TFM_R_WRIST_Y', 'TFM_R_WRIST_Z']].values
+        d = np.linalg.norm(acr-wrist)
+        scale = length / d
+        wrist_prime = wrist + scale * (wrist - acr)
+        mocap.loc[:, ['TFM_R_WRIST_X', 'TFM_R_WRIST_Y', 'TFM_R_WRIST_Z']] = wrist_prime
+
+        return imu.values, mocap.values
 
 class SmartwatchAugmentCnn:
     """
@@ -342,7 +356,7 @@ class SmartwatchAugmentLstm:
             n_out, d_out = mocap.shape
             assert np.ceil(n_in / self.downsample_output_seq) + 1 == n_out, f"Downsamping failed, n_in={n_in}; n_out={n_out}"
             assert d_in == 9, f"IMU data has dimensionality {d_in} instead of 9"
-            assert d_out == 7, f"Mocap data has dimensionality {d_out} instead of 7"
+            assert d_out == 6, f"Mocap data has dimensionality {d_out} instead of 6"
 
             if self.augment:
                 # Augment XYZ positions
