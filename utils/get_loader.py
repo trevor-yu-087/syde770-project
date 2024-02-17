@@ -63,12 +63,39 @@ def get_loaders(data_json, model, seq_len):
         )
     
     train_dataset = SmartwatchDataset(train_files, sample_period)
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=hp.BATCH_SIZE, collate_fn=collate_fn, drop_last=True, shuffle=True)
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset,
+        batch_size=hp.BATCH_SIZE,
+        collate_fn=collate_fn,
+        drop_last=True,
+        shuffle=True,
+        pin_memory=True,
+        # num_workers=hp.NUM_WORKERS,
+        # persistent_workers=True
+    )
 
     val_dataset = SmartwatchDataset(val_files, sample_period)
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=hp.BATCH_SIZE, collate_fn=test_collate_fn, drop_last=True, shuffle=True)
+    val_loader = torch.utils.data.DataLoader(
+        val_dataset,
+        batch_size=hp.BATCH_SIZE,
+        collate_fn=test_collate_fn,
+        drop_last=True,
+        shuffle=True,
+        pin_memory=True,
+        # num_workers=hp.NUM_WORKERS,
+        # persistent_workers=True
+    )
 
     test_dataset = SmartwatchDataset(test_files, sample_period)
-    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=hp.BATCH_SIZE, collate_fn=test_collate_fn, drop_last=True, shuffle=False)
+    test_loader = torch.utils.data.DataLoader(
+        test_dataset,
+        batch_size=hp.BATCH_SIZE,
+        collate_fn=test_collate_fn,
+        drop_last=True,
+        shuffle=False,
+        pin_memory=True,
+        # num_workers=hp.NUM_WORKERS,
+        # persistent_workers=True
+    )
 
     return train_loader, val_loader, test_loader, downsample

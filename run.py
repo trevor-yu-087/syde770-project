@@ -7,6 +7,9 @@ from datetime import datetime
 import typer
 from enum import Enum
 
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+
 import model.hyperparameters as hp
 from utils.get_loader import get_loaders
 from utils.utils import (
@@ -59,9 +62,9 @@ transformer_params = {
 
 @app.command()
 def run(
-    data_json: Path,
-    save_dir: Path,
-    model: NeuralNetwork,
+    data_json: Path = Path('E:\\Datasets\\0-Processed_Datasets\\2023-12-13_imu-vicon-data\\data.json'),
+    save_dir: Path = Path('E:\\Projects\\syde770-project'),
+    model: NeuralNetwork="lstm",
     seq_len: int=32,
     teacher_force_ratio: float = 0.5, 
     dynamic_tf: bool = False, 

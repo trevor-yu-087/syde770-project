@@ -66,9 +66,9 @@ def run_lstm (train_loader, val_loader, seq_len, downsample, save_path, teacher_
         bidirection=False
     ).to(hp.DEVICE)
     decoder_model = Decoder(
-        input_size=7,
+        input_size=6,
         hidden_size=params['hidden_size'][0],
-        output_size=7,
+        output_size=6,
         num_layers=params['num_layers'][0],
         dropout_p=params['dropout'][0],
         bidirection=False
